@@ -1,0 +1,14 @@
+# Core dependencies
+openai>=1.54.0
+python-dotenv>=1.0.0
+sendgrid>=6.11.0
+
+# Development dependencies (optional)
+black>=24.0.0
+flake8>=7.0.0
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# Note: This project is configured to use Poetry for dependency management.
+# For best results, use: poetry install
+# If you prefer pip, use: pip install -r requirements.txt

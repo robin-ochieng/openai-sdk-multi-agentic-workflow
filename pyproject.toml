@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "openai-sdk-agent"
+version = "0.1.0"
+description = "An automated sales agent system using OpenAI SDK for cold email generation"
+authors = ["Robin Ochieng <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "openai_sdk_agent.py"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+openai = "^1.54.0"
+python-dotenv = "^1.0.0"
+sendgrid = "^6.11.0"
+asyncio = "^3.4.3"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.0.0"
+flake8 = "^7.0.0"
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
