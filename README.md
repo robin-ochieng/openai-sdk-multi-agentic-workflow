@@ -99,7 +99,31 @@ OpenAI SDK Agents/
 ├── .env                      # Environment variables (not in git)
 ├── .env.example             # Environment template
 ├── .gitignore               # Git ignore rules
-└── README.md                # This file
+├── README.md                # This file
+│
+├── docs/                     # 📚 Complete documentation
+│   ├── INDEX.md             # Documentation navigation
+│   ├── SETUP.md             # Detailed setup guide
+│   ├── AGENT_WORKFLOW_EXPLAINED.md  # Design patterns
+│   ├── GMAIL_IMPLEMENTATION.md      # Gmail SMTP guide
+│   ├── QUICK_START_GMAIL.md         # Quick Gmail setup
+│   └── ... (10 total docs)
+│
+├── email_sender/             # 📧 Gmail SMTP module
+│   ├── __init__.py
+│   ├── config.py            # Email configuration
+│   ├── gmail_sender.py      # Gmail SMTP sender
+│   ├── email_templates.py   # Pre-built templates
+│   ├── validators.py        # Email validation
+│   ├── exceptions.py        # Custom exceptions
+│   ├── README.md            # Module documentation
+│   ├── SETUP_GUIDE.md       # Gmail App Password guide
+│   ├── examples/            # Example scripts
+│   └── tests/               # Unit tests
+│
+├── test_gmail.py            # Gmail SMTP test script
+├── test_sales_email.py      # Sales template test
+└── test_integration.py      # Integration examples
 ```
 
 ## 🧪 How It Works
@@ -170,13 +194,30 @@ MIT License - feel free to use this project for personal or commercial purposes.
 - **Compliance**: Ensure you comply with anti-spam laws (CAN-SPAM, GDPR, etc.)
 - **Testing**: Test thoroughly with your own email before sending to prospects
 
-## 📞 Support
+## � Documentation
+
+For detailed documentation, see the [docs/](./docs/) folder:
+
+- **[Getting Started](./docs/SETUP.md)** - Complete installation and setup
+- **[Quick Reference](./docs/QUICK_REFERENCE.md)** - Common commands and shortcuts
+- **[Gmail Setup](./docs/QUICK_START_GMAIL.md)** - Gmail SMTP in 3 minutes
+- **[Agent Workflow](./docs/AGENT_WORKFLOW_EXPLAINED.md)** - Deep dive into design patterns
+- **[Email Module](./email_sender/README.md)** - Gmail SMTP API reference
+- **[Documentation Index](./docs/INDEX.md)** - Complete documentation navigation
+
+## �📞 Support
 
 For issues or questions:
+- Check the [Documentation Index](./docs/INDEX.md) for comprehensive guides
+- Review the [Troubleshooting Guide](./docs/INSTALLATION_SUCCESS.md)
 - Check the OpenAI documentation: https://platform.openai.com/docs
 - Check the SendGrid documentation: https://docs.sendgrid.com
 - Review OpenAI traces: https://platform.openai.com/traces
 
+## 🔗 Repository
+
+**GitHub:** [robin-ochieng/openai-sdk-multi-agentic-workflow](https://github.com/robin-ochieng/openai-sdk-multi-agentic-workflow)
+
 ---
 
-Built with ❤️ using OpenAI SDK and SendGrid
+Built with ❤️ using OpenAI SDK, SendGrid, and Gmail SMTP
