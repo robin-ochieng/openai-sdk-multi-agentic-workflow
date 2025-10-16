@@ -11,6 +11,11 @@ An intelligent agent system built with OpenAI's SDK for automated cold sales ema
 - **Automated Email Delivery**: Integration with SendGrid for reliable email sending
 - **Agent Collaboration**: Tools and handoffs for seamless agent interaction
 - **Async Processing**: Parallel email generation for improved performance
+- **🛡️ Guardrails & Structured Outputs**: Production-grade safety and validation (NEW!)
+  - Input validation (name detection, content safety)
+  - Output validation (spam detection, quality checks)
+  - Rate limiting (50/hour, 500/day)
+  - Structured outputs with Pydantic models
 
 ## 📋 Prerequisites
 
@@ -94,39 +99,76 @@ python openai_sdk_agent.py
 ```
 OpenAI SDK Agents/
 │
-├── openai_sdk_agent.py      # Main application file
-├── pyproject.toml            # Poetry configuration
-├── .env                      # Environment variables (not in git)
-├── .env.example             # Environment template
-├── .gitignore               # Git ignore rules
-├── README.md                # This file
+├── openai_sdk_agent.py                  # Main application file
+├── openai_sdk_agent_with_guardrails.py  # 🛡️ Protected version with guardrails
+├── guardrails.py                        # 🛡️ Main guardrail system
+├── pyproject.toml                       # Poetry configuration
+├── .env                                 # Environment variables (not in git)
+├── .env.example                         # Environment template
+├── .gitignore                           # Git ignore rules
+├── README.md                            # This file
 │
-├── docs/                     # 📚 Complete documentation
-│   ├── INDEX.md             # Documentation navigation
-│   ├── SETUP.md             # Detailed setup guide
-│   ├── AGENT_WORKFLOW_EXPLAINED.md  # Design patterns
-│   ├── GMAIL_IMPLEMENTATION.md      # Gmail SMTP guide
-│   ├── QUICK_START_GMAIL.md         # Quick Gmail setup
-│   └── ... (10 total docs)
+├── docs/                                # 📚 Complete documentation
+│   ├── INDEX.md                         # Documentation navigation
+│   ├── SETUP.md                         # Detailed setup guide
+│   ├── GUARDRAILS.md                    # 🛡️ Guardrails guide (NEW!)
+│   ├── AGENT_WORKFLOW_EXPLAINED.md      # Design patterns
+│   ├── GMAIL_IMPLEMENTATION.md          # Gmail SMTP guide
+│   ├── QUICK_START_GMAIL.md             # Quick Gmail setup
+│   └── ... (11 total docs)
 │
-├── email_sender/             # 📧 Gmail SMTP module
+├── email_sender/                        # 📧 Gmail SMTP module
 │   ├── __init__.py
-│   ├── config.py            # Email configuration
-│   ├── gmail_sender.py      # Gmail SMTP sender
-│   ├── email_templates.py   # Pre-built templates
-│   ├── validators.py        # Email validation
-│   ├── exceptions.py        # Custom exceptions
-│   ├── README.md            # Module documentation
-│   ├── SETUP_GUIDE.md       # Gmail App Password guide
-│   └── examples/            # Example scripts
+│   ├── config.py                        # Email configuration
+│   ├── gmail_sender.py                  # Gmail SMTP sender
+│   ├── guardrails_email.py              # 🛡️ Email guardrails (NEW!)
+│   ├── email_templates.py               # Pre-built templates
+│   ├── validators.py                    # Email validation
+│   ├── exceptions.py                    # Custom exceptions
+│   ├── README.md                        # Module documentation
+│   ├── SETUP_GUIDE.md                   # Gmail App Password guide
+│   └── examples/                        # Example scripts
 │
-└── tests/                    # 🧪 All test files
-    ├── README.md            # Testing guide
-    ├── test_gmail.py        # Gmail SMTP integration test
-    ├── test_sales_email.py  # Sales template test
-    ├── test_integration.py  # Integration examples
-    └── test_gmail_sender.py # Unit tests for GmailSender
+└── tests/                               # 🧪 All test files
+    ├── README.md                        # Testing guide
+    ├── test_gmail.py                    # Gmail SMTP integration test
+    ├── test_sales_email.py              # Sales template test
+    ├── test_integration.py              # Integration examples
+    └── test_gmail_sender.py             # Unit tests for GmailSender
 ```
+
+## 🛡️ Guardrails & Safety (NEW!)
+
+This project now includes comprehensive guardrails for production-grade AI safety:
+
+### Input Guardrails
+- ✅ **Name Detection**: Flags personal names for privacy/compliance
+- ✅ **Content Safety**: Prevents inappropriate inputs
+
+### Output Guardrails
+- ✅ **Spam Detection**: Scores emails (0-100) and blocks high-risk content
+- ✅ **Quality Validation**: Ensures professional tone and personalization
+- ✅ **Safety Checks**: Prevents harmful or inappropriate outputs
+
+### Operational Guardrails
+- ✅ **Rate Limiting**: 50 emails/hour, 500 emails/day
+- ✅ **Email Validation**: Format checking, domain verification
+- ✅ **Statistics Tracking**: Monitor sending patterns
+
+### Quick Start with Guardrails
+
+```powershell
+# Run protected workflow with all guardrails
+python openai_sdk_agent_with_guardrails.py
+
+# Test email guardrails
+python email_sender/guardrails_email.py
+
+# Test main guardrail system
+python guardrails.py
+```
+
+**📖 Full Documentation**: [docs/GUARDRAILS.md](docs/GUARDRAILS.md)
 
 ## 🧪 How It Works
 
