@@ -1,0 +1,19 @@
+# Deep Research Agent - Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+openai>=1.109.0          # OpenAI SDK with Agent support
+pydantic>=2.0.0          # Structured outputs and validation
+python-dotenv>=1.0.0     # Environment variable management
+gradio>=4.0.0            # Web UI framework
+
+# Email dependencies (from parent project)
+# These should already be installed if using the main project
+
+# Optional dependencies for development
+# Uncomment if needed for development/testing
+
+# pytest>=7.0.0          # Testing framework
+# black>=23.0.0          # Code formatting
+# mypy>=1.0.0            # Type checking
+# flake8>=6.0.0          # Linting
