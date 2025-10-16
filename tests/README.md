@@ -97,6 +97,96 @@ pytest tests\test_gmail_sender.py -v
 
 ---
 
+### 🛡️ Guardrails Tests (NEW!)
+
+#### `test_guardrails_basic.py`
+**Purpose:** Test guardrail functionality without sending emails  
+**What it tests:**
+- ✅ Professional email validation (should pass)
+- ❌ Spammy email detection (should block)
+- ❌ Invalid email format detection
+- ⚙️ Rate limiting functionality
+- ⚠️ Personalization warnings
+
+**How to run:**
+```powershell
+python tests\test_guardrails_basic.py
+```
+
+**Expected output:**
+```
+🛡️  BASIC GUARDRAILS TEST SUITE
+
+TEST 1.1: Professional Email (Should PASS)
+   ✅ PASSED: Spam Score: 5/100 (low)
+
+TEST 1.2: Spammy Email (Should FAIL)
+   ❌ FAILED: Spam Score: 65/100 (high) - BLOCKED
+
+TEST 1.3: Invalid Email Format (Should FAIL)
+   ❌ FAILED: Email format invalid - BLOCKED
+
+TEST 1.4: Rate Limiting
+   ✅ PASSED: 5 emails recorded, limits tracked
+
+TEST 1.5: Personalization Warnings
+   ⚠️  PASSED: Warnings detected (non-blocking)
+
+📊 TEST SUMMARY
+   Total Tests: 5
+   ✅ Passed: 5
+   ❌ Failed: 0
+   Success Rate: 100.0%
+```
+
+---
+
+#### `test_guardrails_gmail.py`
+**Purpose:** Test guardrails with actual Gmail SMTP sending  
+**What it tests:**
+- ✅ Protected professional email (sends successfully)
+- 🚫 Protected spammy email (blocked before sending)
+- 📊 Rate limit tracking with real sends
+- 📧 Multiple emails with different spam scores
+
+**⚠️ WARNING:** This test sends ACTUAL emails!
+
+**How to run:**
+```powershell
+python tests\test_guardrails_gmail.py
+```
+
+**Expected output:**
+```
+🛡️  GMAIL SMTP + GUARDRAILS INTEGRATION TEST SUITE
+
+TEST 2.1: Protected Professional Email
+   🛡️  Guardrail Results: ✅ PASSED (Spam: 5/100)
+   📬 Email sent successfully!
+   ✅ TEST PASSED
+
+TEST 2.2: Protected Spammy Email
+   🛡️  Guardrail Results: ❌ FAILED (Spam: 65/100)
+   🚫 EMAIL BLOCKED BY GUARDRAILS
+   ✅ TEST PASSED (correctly blocked)
+
+TEST 2.3: Rate Limit Protection
+   📊 Statistics tracked correctly
+   ✅ TEST PASSED
+
+TEST 2.4: Multiple Emails
+   ✅ Low spam: Sent
+   ⚠️  Medium spam: Sent with warnings
+   🚫 High spam: Blocked
+   ✅ TEST PASSED
+
+📊 TEST SUMMARY
+   ✅ All guardrails working correctly!
+   📬 Check inbox for test emails
+```
+
+---
+
 ## 🚀 Running All Tests
 
 ### Run All Tests Together
