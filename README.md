@@ -118,12 +118,14 @@ OpenAI SDK Agents/
 │   ├── exceptions.py        # Custom exceptions
 │   ├── README.md            # Module documentation
 │   ├── SETUP_GUIDE.md       # Gmail App Password guide
-│   ├── examples/            # Example scripts
-│   └── tests/               # Unit tests
+│   └── examples/            # Example scripts
 │
-├── test_gmail.py            # Gmail SMTP test script
-├── test_sales_email.py      # Sales template test
-└── test_integration.py      # Integration examples
+└── tests/                    # 🧪 All test files
+    ├── README.md            # Testing guide
+    ├── test_gmail.py        # Gmail SMTP integration test
+    ├── test_sales_email.py  # Sales template test
+    ├── test_integration.py  # Integration examples
+    └── test_gmail_sender.py # Unit tests for GmailSender
 ```
 
 ## 🧪 How It Works
