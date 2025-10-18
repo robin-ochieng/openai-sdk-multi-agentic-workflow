@@ -1,10 +1,11 @@
 """
 Gradio Web Interface for Deep Research Agent
-Provides simple UI for submitting research queries
+Provides simple UI for submitting research queries with real-time progress updates
 """
 
 import gradio as gr
 import asyncio
+from datetime import datetime
 from ..research_manager import ResearchManager
 
 
@@ -19,34 +20,117 @@ def create_ui():
     # Initialize research manager
     manager = ResearchManager()
     
-    async def run_research(query: str) -> tuple:
+    def format_log(message: str, emoji: str = "📌") -> str:
+        """Format a log message with timestamp"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        return f"[{timestamp}] {emoji} {message}"
+    
+    async def run_research(query: str, progress=gr.Progress()):
         """
-        Execute research and return results
+        Execute research and return results with real-time progress updates
         
         Args:
             query: Research query from user
+            progress: Gradio progress tracker
             
-        Returns:
-            Tuple of (status_message, markdown_report, trace_url)
+        Yields:
+            Tuple of (logs, markdown_report, trace_url)
         """
+        logs = []
+        
         if not query or len(query.strip()) < 5:
-            return (
+            yield (
                 "❌ Please enter a valid research query (at least 5 characters)",
                 "",
                 ""
             )
+            return
+        
+
         
         try:
-            # Run the research pipeline
-            report = await manager.run(query)
+            # Initialize
+            logs.append(format_log("🚀 Initializing Deep Research Agent...", "🚀"))
+            logs.append(format_log(f"Query: {query}", "🔍"))
+            logs.append(format_log("=" * 60, ""))
+            yield ("\n".join(logs), "", "")
             
-            status = f"✅ Research complete! Report sent to {manager.current_status}"
+            progress(0, desc="Planning searches...")
             
-            return (status, report, manager.trace_url)
+            # Step 1: Plan searches
+            logs.append(format_log("STEP 1: Planning Research Strategy", "🎯"))
+            logs.append(format_log("Analyzing query and creating search plan...", "🧠"))
+            yield ("\n".join(logs), "", "")
+            
+            search_plan = await manager.plan_searches(query)
+            
+            logs.append(format_log(f"✅ Created plan with {len(search_plan.searches)} searches:", "✅"))
+            for i, search in enumerate(search_plan.searches, 1):
+                logs.append(format_log(f"  {i}. {search.query}", "  🔎"))
+                logs.append(format_log(f"     → {search.reason[:80]}...", ""))
+            logs.append(format_log("=" * 60, ""))
+            yield ("\n".join(logs), "", "")
+            
+            progress(0.25, desc="Performing web searches...")
+            
+            # Step 2: Perform searches
+            logs.append(format_log("STEP 2: Performing Web Searches", "🌐"))
+            yield ("\n".join(logs), "", "")
+            
+            search_results = await manager.perform_searches(search_plan)
+            
+            logs.append(format_log(f"✅ Completed {len(search_results)} searches", "✅"))
+            for i, (search_item, result) in enumerate(zip(search_plan.searches, search_results), 1):
+                logs.append(format_log(f"  {i}. {search_item.query} - {len(result)} chars", "  📄"))
+            logs.append(format_log("=" * 60, ""))
+            yield ("\n".join(logs), "", "")
+            
+            progress(0.5, desc="Writing comprehensive report...")
+            
+            # Step 3: Write report
+            logs.append(format_log("STEP 3: Synthesizing Research Report", "✍️"))
+            logs.append(format_log("Analyzing findings and creating report...", "📝"))
+            yield ("\n".join(logs), "", "")
+            
+            report_data = await manager.write_report(query, search_results)
+            
+            logs.append(format_log(f"✅ Generated report: ~{len(report_data.markdown_report.split())} words", "✅"))
+            logs.append(format_log(f"Report length: {len(report_data.markdown_report)} characters", "📊"))
+            logs.append(format_log("=" * 60, ""))
+            yield ("\n".join(logs), report_data.markdown_report, manager.trace_url or "")
+            
+            progress(0.75, desc="Sending email...")
+            
+            # Step 4: Send email
+            logs.append(format_log("STEP 4: Sending Email", "📧"))
+            logs.append(format_log("Converting to HTML and applying guardrails...", "🛡️"))
+            yield ("\n".join(logs), report_data.markdown_report, manager.trace_url or "")
+            
+            email_result = await manager.send_email(report_data)
+            
+            # email_result is now a dict from the function_tool
+            if isinstance(email_result, dict) and email_result.get('status') == 'success':
+                logs.append(format_log(f"✅ {email_result.get('message', 'Email sent successfully')}", "✅"))
+            elif isinstance(email_result, dict):
+                logs.append(format_log(f"⚠️ {email_result.get('message', 'Email sending issue')}", "⚠️"))
+            else:
+                logs.append(format_log(f"⚠️ Unexpected email result format", "⚠️"))
+            
+            logs.append(format_log("=" * 60, ""))
+            progress(1.0, desc="Complete!")
+            
+            # Final summary
+            logs.append(format_log("🎉 RESEARCH COMPLETE!", "🎉"))
+            logs.append(format_log(f"📊 Trace URL: {manager.trace_url}", "🔗"))
+            logs.append(format_log(f"📧 Email sent to recipient", "✉️"))
+            logs.append(format_log("=" * 60, ""))
+            
+            yield ("\n".join(logs), report_data.markdown_report, manager.trace_url or "")
             
         except Exception as e:
-            error_msg = f"❌ Error during research: {str(e)}"
-            return (error_msg, "", "")
+            logs.append(format_log(f"❌ ERROR: {str(e)}", "❌"))
+            logs.append(format_log("Check trace URL for details", "🔍"))
+            yield ("\n".join(logs), "", manager.trace_url or "")
     
     # Create Gradio interface
     with gr.Blocks(
@@ -113,11 +197,18 @@ def create_ui():
         
         gr.Markdown("---")
         
-        status_output = gr.Textbox(
-            label="📌 Status",
-            interactive=False,
-            lines=2
-        )
+        # Progress logs - prominently displayed
+        with gr.Accordion("📊 Live Progress & Logs", open=True):
+            logs_output = gr.Textbox(
+                label="Real-time Execution Logs",
+                placeholder="Logs will appear here as the agent works...",
+                interactive=False,
+                lines=20,
+                max_lines=30,
+                show_copy_button=True
+            )
+        
+        gr.Markdown("---")
         
         with gr.Tabs():
             with gr.Tab("📄 Report Preview"):
@@ -130,7 +221,8 @@ def create_ui():
                 trace_output = gr.Textbox(
                     label="OpenAI Trace URL",
                     placeholder="Trace URL will appear here...",
-                    interactive=False
+                    interactive=False,
+                    show_copy_button=True
                 )
                 gr.Markdown(
                     """
@@ -166,7 +258,7 @@ def create_ui():
         submit_btn.click(
             fn=run_research,
             inputs=[query_input],
-            outputs=[status_output, report_output, trace_output],
+            outputs=[logs_output, report_output, trace_output],
             api_name="research"
         )
         

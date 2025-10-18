@@ -19,10 +19,10 @@ def main():
     print("🔬 Starting Deep Research Agent...")
     print("📊 Loading web interface...")
     
-    # Launch Gradio UI
+    # Launch Gradio UI on port 7863 (previous ports in use)
     launch_ui(
         share=False,  # Set to True for public URL
-        server_port=7860
+        server_port=7863
     )
 
 

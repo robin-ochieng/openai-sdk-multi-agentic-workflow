@@ -8,10 +8,15 @@ packages = [{include = "openai_sdk_agent.py"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-openai = "^1.54.0"
+openai = "^1.107.0"
+openai-agents = "^0.3.3"
 python-dotenv = "^1.0.0"
 sendgrid = "^6.11.0"
 asyncio = "^3.4.3"
+gradio = "^5.0.0"
+pydantic = "^2.10.0"
+fastapi = "^0.119.0"
+uvicorn = "^0.37.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.0.0"

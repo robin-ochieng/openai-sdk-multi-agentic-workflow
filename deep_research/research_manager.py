@@ -6,10 +6,10 @@ Orchestrates the 4-agent pipeline for deep research
 import os
 import asyncio
 from typing import Dict, List
-from openai.lib._agents import Runner, trace, get_trace_id
 from dotenv import load_dotenv
 
-from .agents import (
+from agents import Runner, trace, get_current_trace
+from deep_research.research_agents import (
     create_planner_agent,
     create_search_agent,
     create_writer_agent,
@@ -29,13 +29,13 @@ class ResearchManager:
     4. Email Agent → Converts to HTML and emails via Gmail SMTP
     """
     
-    def __init__(self, api_key: str = None, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str = None, model: str = "gpt-4o"):
         """
         Initialize the Research Manager
         
         Args:
             api_key: OpenAI API key (if None, reads from environment)
-            model: Model to use for all agents (default: gpt-4o-mini)
+            model: Model to use for all agents (default: gpt-4o)
         """
         load_dotenv()
         
@@ -177,10 +177,17 @@ class ResearchManager:
             report.markdown_report
         )
         
+        # Extract the function call result from the agent's output
+        # The email agent uses a function_tool that returns a dict
+        if hasattr(result, 'final_output'):
+            email_status = result.final_output
+        else:
+            email_status = {"status": "unknown", "message": "No output from email agent"}
+        
         print(f"✅ Email sent!")
         print(f"📬 Check your inbox: {os.getenv('RECIPIENT_EMAIL')}")
         
-        return result
+        return email_status
     
     async def run(self, query: str) -> str:
         """
@@ -193,10 +200,11 @@ class ResearchManager:
             Markdown report content
         """
         # Create trace for monitoring
-        trace_id = get_trace_id()
+        current_trace = get_current_trace()
+        trace_id = current_trace.trace_id if current_trace else "unknown"
         self.trace_url = f"https://platform.openai.com/traces/trace?trace_id={trace_id}"
         
-        with trace("Research trace", trace_id=trace_id):
+        with trace("Research trace"):
             print(f"\n{'='*80}")
             print("🎯 DEEP RESEARCH AGENT - Starting Research Process")
             print(f"{'='*80}")
