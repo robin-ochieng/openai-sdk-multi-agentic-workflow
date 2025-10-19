@@ -1,0 +1,36 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="16" cy="16" r="16" fill="url(#gradient)"/>
+  
+  <!-- AI/Research Icon - Stylized "DR" with Circuit Pattern -->
+  <g transform="translate(16, 16)">
+    <!-- D Letter -->
+    <path d="M-8 -6 L-8 6 L-4 6 C-1 6 1 4 1 0 C1 -4 -1 -6 -4 -6 Z M-6 -4 L-4 -4 C-2 -4 -1 -2.5 -1 0 C-1 2.5 -2 4 -4 4 L-6 4 Z" 
+          fill="white" opacity="0.95"/>
+    
+    <!-- R Letter -->
+    <path d="M3 -6 L3 6 M3 -6 L7 -6 C9 -6 10 -5 10 -3 C10 -1.5 9 -0.5 7 -0.5 L3 -0.5 M7 -0.5 L10 6" 
+          stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+    
+    <!-- Circuit Nodes -->
+    <circle cx="-9" cy="-9" r="1" fill="white" opacity="0.6"/>
+    <circle cx="9" cy="-9" r="1" fill="white" opacity="0.6"/>
+    <circle cx="-9" cy="9" r="1" fill="white" opacity="0.6"/>
+    <circle cx="9" cy="9" r="1" fill="white" opacity="0.6"/>
+    
+    <!-- Connection Lines -->
+    <line x1="-9" y1="-9" x2="-8" y2="-6" stroke="white" stroke-width="0.5" opacity="0.3"/>
+    <line x1="9" y1="-9" x2="10" y2="-6" stroke="white" stroke-width="0.5" opacity="0.3"/>
+    <line x1="-9" y1="9" x2="-8" y2="6" stroke="white" stroke-width="0.5" opacity="0.3"/>
+    <line x1="9" y1="9" x2="10" y2="6" stroke="white" stroke-width="0.5" opacity="0.3"/>
+  </g>
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,0 +1,72 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle with Gradient -->
+  <circle cx="256" cy="256" r="256" fill="url(#gradient)"/>
+  
+  <!-- Outer Glow Effect -->
+  <circle cx="256" cy="256" r="240" fill="url(#innerGlow)" opacity="0.3"/>
+  
+  <!-- Main Icon Group - Centered DR Letters -->
+  <g transform="translate(256, 256)">
+    <!-- D Letter - Bold and Modern -->
+    <path d="M-130 -100 L-130 100 L-60 100 C-20 100 15 70 15 0 C15 -70 -20 -100 -60 -100 Z M-100 -75 L-60 -75 C-30 -75 -15 -45 -15 0 C-15 45 -30 75 -60 75 L-100 75 Z" 
+          fill="white" opacity="0.98" filter="url(#shadow)"/>
+    
+    <!-- R Letter - Bold and Modern -->
+    <path d="M50 -100 L50 100 M50 -100 L115 -100 C145 -100 165 -82 165 -55 C165 -30 145 -12 115 -12 L50 -12 M115 -12 L165 100" 
+          stroke="white" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" opacity="0.98" filter="url(#shadow)"/>
+    
+    <!-- Circuit Pattern - Tech Feel -->
+    <g opacity="0.5">
+      <!-- Corner Nodes -->
+      <circle cx="-160" cy="-160" r="12" fill="white"/>
+      <circle cx="160" cy="-160" r="12" fill="white"/>
+      <circle cx="-160" cy="160" r="12" fill="white"/>
+      <circle cx="160" cy="160" r="12" fill="white"/>
+      
+      <!-- Connecting Lines -->
+      <line x1="-160" y1="-160" x2="-130" y2="-100" stroke="white" stroke-width="4" opacity="0.4"/>
+      <line x1="160" y1="-160" x2="165" y2="-100" stroke="white" stroke-width="4" opacity="0.4"/>
+      <line x1="-160" y1="160" x2="-130" y2="100" stroke="white" stroke-width="4" opacity="0.4"/>
+      <line x1="160" y1="160" x2="165" y2="100" stroke="white" stroke-width="4" opacity="0.4"/>
+      
+      <!-- Mid-edge Nodes -->
+      <circle cx="0" cy="-180" r="8" fill="white" opacity="0.6"/>
+      <circle cx="0" cy="180" r="8" fill="white" opacity="0.6"/>
+      <circle cx="-180" cy="0" r="8" fill="white" opacity="0.6"/>
+      <circle cx="180" cy="0" r="8" fill="white" opacity="0.6"/>
+      
+      <!-- Inner Circuit Elements -->
+      <circle cx="-80" cy="-120" r="6" fill="white" opacity="0.5"/>
+      <circle cx="80" cy="-120" r="6" fill="white" opacity="0.5"/>
+      <circle cx="-80" cy="120" r="6" fill="white" opacity="0.5"/>
+      <circle cx="80" cy="120" r="6" fill="white" opacity="0.5"/>
+    </g>
+  </g>
+  
+  <!-- Gradient Definitions -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="40%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
+    </linearGradient>
+    
+    <radialGradient id="innerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    </radialGradient>
+    
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>

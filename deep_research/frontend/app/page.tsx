@@ -1,135 +1,196 @@
 'use client'
 
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
 import { motion } from 'framer-motion'
-import { ResearchForm } from '@/components/ResearchForm'
-import { RunLayout } from '@/components/RunLayout'
-import { ReportPreview } from '@/components/ReportPreview'
-import { EmailPreview } from '@/components/EmailPreview'
-import { ResearchState } from '@/lib/types'
-import { Shield, Lock, CheckCircle2 } from 'lucide-react'
+import { Search, Sparkles, ArrowRight } from 'lucide-react'
+
+import { useRunStore } from '@/lib/runStore'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+
+const formSchema = z.object({
+  query: z.string()
+    .min(12, {
+      message: 'Query must be at least 12 characters for better results.',
+    })
+    .max(500, {
+      message: 'Query must be less than 500 characters.',
+    }),
+  email: z.string()
+    .email({
+      message: 'Please enter a valid email address.',
+    })
+    .optional()
+    .or(z.literal('')),
+})
+
+type FormValues = z.infer<typeof formSchema>
 
 export default function HomePage() {
-  const [researchState, setResearchState] = useState<ResearchState>({
-    isResearching: false,
-    currentStep: null,
-    progress: 0,
-    logs: [],
-    searchPlan: null,
-    searchResults: null,
-    report: null,
-    emailSent: false,
-    error: null,
+  const router = useRouter()
+  const { reset } = useRunStore()
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      query: '',
+      email: '',
+    },
   })
 
+  const onSubmit = async (values: FormValues) => {
+    // Generate a unique run ID
+    const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    
+    // Reset store with new run data
+    reset(runId, values.query, values.email || undefined)
+    
+    // Navigate to live research page - streaming starts automatically
+    router.push(`/live?runId=${runId}`)
+  }
+
   return (
-    <main className="min-h-screen">
-      {/* Hero Section - Premium & Minimal */}
-      <section className="relative overflow-hidden border-b border-border/40">
-        {/* Background layers */}
-        <div className="absolute inset-0 hero-gradient"></div>
-        <div className="absolute inset-0 grid-pattern opacity-[0.03]"></div>
-        <div className="absolute inset-0 noise-texture"></div>
-        
-        <div className="container relative mx-auto px-4 py-20 md:py-28">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-2xl"
+      >
+        {/* Header */}
+        <div className="mb-8 text-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mx-auto max-w-4xl text-center"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary"
           >
-            <h1 className="mb-6 bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-5xl font-bold tracking-tight text-transparent md:text-7xl">
-              Deep Research Agent
-            </h1>
-            <p className="mb-8 text-xl text-muted-foreground md:text-2xl">
-              Transform any query into comprehensive research reports with AI-powered
-              multi-agent collaboration
-            </p>
-            
-            {/* Trust indicators */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.4 }}
-              className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground"
-            >
-              <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                <span>Private</span>
-              </div>
-              <span className="text-border">•</span>
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                <span>Secure</span>
-              </div>
-              <span className="text-border">•</span>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Source-backed</span>
-              </div>
-            </motion.div>
+            <Sparkles className="h-4 w-4" />
+            <span>AI-Powered Research</span>
           </motion.div>
+          
+          <h1 className="mb-3 text-4xl font-bold tracking-tight md:text-5xl">
+            Deep Research Agent
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Enter a research query and let our AI agents find, analyze, and synthesize information for you
+          </p>
         </div>
-      </section>
 
-      {/* Research Interface */}
-      <section className="py-16 bg-muted/20">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-6xl space-y-8">
-            {/* Research Form - Only show if not researching */}
-            {!researchState.isResearching && !researchState.report && (
-              <ResearchForm
-                researchState={researchState}
-                setResearchState={setResearchState}
+        {/* Form Card */}
+        <Card className="border-slate-200 bg-white p-8 shadow-xl dark:border-slate-800 dark:bg-slate-950">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Query Field */}
+              <FormField
+                control={form.control}
+                name="query"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-semibold">
+                      Research Query
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="e.g., What are the latest developments in quantum computing and their potential applications in cryptography?"
+                        className="min-h-[120px] resize-none text-base"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Minimum 12 characters. Be specific for better results.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            )}
 
-            {/* Run Layout - Show during research */}
-            {researchState.isResearching && (
-              <RunLayout researchState={researchState} />
-            )}
-
-            {/* Report Preview */}
-            {researchState.report && (
-              <ReportPreview
-                report={researchState.report}
-                isResearching={researchState.isResearching}
+              {/* Email Field (Optional) */}
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="your@email.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Receive the research report via email when complete
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            )}
 
-            {/* Email Preview */}
-            {researchState.emailSent && (
-              <EmailPreview report={researchState.report} />
-            )}
-
-            {/* Error Display */}
-            {researchState.error && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border border-destructive/50 bg-destructive/10 p-6 shadow-premium"
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full text-base"
+                disabled={form.formState.isSubmitting}
               >
-                <h3 className="mb-2 font-semibold text-destructive">Error</h3>
-                <p className="text-sm text-destructive/90">{researchState.error}</p>
-              </motion.div>
-            )}
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Search className="mr-2 h-5 w-5 animate-spin" />
+                    Starting Research...
+                  </>
+                ) : (
+                  <>
+                    Start Research
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
+        </Card>
 
-            {/* Empty State */}
-            {!researchState.isResearching && !researchState.report && !researchState.error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-center py-12"
-              >
-                <p className="text-muted-foreground text-sm">
-                  Enter a research query above to get started
-                </p>
-              </motion.div>
-            )}
+        {/* Features */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8 grid gap-4 sm:grid-cols-3"
+        >
+          <div className="rounded-lg border border-slate-200/60 bg-white/50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+            <h3 className="mb-1 font-semibold">4-Agent Pipeline</h3>
+            <p className="text-sm text-muted-foreground">
+              Planner, Searcher, Synthesizer, and Editor work together
+            </p>
           </div>
-        </div>
-      </section>
-    </main>
+          <div className="rounded-lg border border-slate-200/60 bg-white/50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+            <h3 className="mb-1 font-semibold">Live Progress</h3>
+            <p className="text-sm text-muted-foreground">
+              Watch each agent work in real-time with detailed logs
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200/60 bg-white/50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+            <h3 className="mb-1 font-semibold">Source-Backed</h3>
+            <p className="text-sm text-muted-foreground">
+              Every claim is traceable to original sources
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </div>
   )
 }

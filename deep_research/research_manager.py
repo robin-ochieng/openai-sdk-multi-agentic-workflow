@@ -199,16 +199,17 @@ class ResearchManager:
         Returns:
             Markdown report content
         """
-        # Create trace for monitoring
+        # Create trace for monitoring with OpenAI Agents SDK
         current_trace = get_current_trace()
         trace_id = current_trace.trace_id if current_trace else "unknown"
         self.trace_url = f"https://platform.openai.com/traces/trace?trace_id={trace_id}"
         
-        with trace("Research trace"):
+        with trace("deep-research-agent"):
             print(f"\n{'='*80}")
             print("🎯 DEEP RESEARCH AGENT - Starting Research Process")
             print(f"{'='*80}")
-            print(f"📊 View trace: {self.trace_url}")
+            print(f"📊 OpenAI Trace: {self.trace_url}")
+            print(f"📊 View traces at: https://platform.openai.com/traces")
             
             # Step 1: Plan searches
             search_plan = await self.plan_searches(query)
@@ -228,7 +229,8 @@ class ResearchManager:
             print("🎉 RESEARCH COMPLETE!")
             print(f"{'='*80}")
             print(f"📧 Report sent to: {os.getenv('RECIPIENT_EMAIL')}")
-            print(f"📊 Trace URL: {self.trace_url}")
+            print(f"📊 OpenAI Trace: {self.trace_url}")
+            print(f"📊 View all traces: https://platform.openai.com/traces")
             print(f"{'='*80}\n")
             
             return report.markdown_report

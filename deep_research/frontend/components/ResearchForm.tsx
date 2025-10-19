@@ -93,7 +93,7 @@ export function ResearchForm({ researchState, setResearchState }: ResearchFormPr
               <h2 className="text-lg font-semibold">New Research</h2>
               {!researchState.isResearching && (
                 <ExamplesPopover
-                  onSelectExample={(exampleQuery) => {
+                  onSelectExample={(exampleQuery: string) => {
                     setQuery(exampleQuery)
                     setErrors({})
                   }}

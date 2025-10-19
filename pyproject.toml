@@ -17,6 +17,8 @@ gradio = "^5.0.0"
 pydantic = "^2.10.0"
 fastapi = "^0.119.0"
 uvicorn = "^0.37.0"
+langchain = {version = "^1.0.0", allow-prereleases = true}
+langchain-openai = {version = "^1.0.0", allow-prereleases = true}
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.0.0"

@@ -1,0 +1,42 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with rounded corners -->
+  <rect width="180" height="180" rx="40" fill="url(#gradient)"/>
+  
+  <!-- Main Icon Group -->
+  <g transform="translate(90, 90)">
+    <!-- D Letter -->
+    <path d="M-45 -35 L-45 35 L-20 35 C-5 35 5 23 5 0 C5 -23 -5 -35 -20 -35 Z M-33 -25 L-20 -25 C-10 -25 -5 -15 -5 0 C-5 15 -10 25 -20 25 L-33 25 Z" 
+          fill="white" opacity="0.98"/>
+    
+    <!-- R Letter -->
+    <path d="M18 -35 L18 35 M18 -35 L40 -35 C52 -35 58 -28 58 -18 C58 -9 52 -3 40 -3 L18 -3 M40 -3 L58 35" 
+          stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.98"/>
+    
+    <!-- Circuit Pattern -->
+    <circle cx="-50" cy="-50" r="4" fill="white" opacity="0.5"/>
+    <circle cx="50" cy="-50" r="4" fill="white" opacity="0.5"/>
+    <circle cx="-50" cy="50" r="4" fill="white" opacity="0.5"/>
+    <circle cx="50" cy="50" r="4" fill="white" opacity="0.5"/>
+    
+    <!-- Connecting lines -->
+    <line x1="-50" y1="-50" x2="-45" y2="-35" stroke="white" stroke-width="2" opacity="0.3"/>
+    <line x1="50" y1="-50" x2="58" y2="-35" stroke="white" stroke-width="2" opacity="0.3"/>
+    <line x1="-50" y1="50" x2="-45" y2="35" stroke="white" stroke-width="2" opacity="0.3"/>
+    <line x1="50" y1="50" x2="58" y2="35" stroke="white" stroke-width="2" opacity="0.3"/>
+    
+    <!-- Additional decorative elements -->
+    <circle cx="0" cy="-60" r="2" fill="white" opacity="0.4"/>
+    <circle cx="0" cy="60" r="2" fill="white" opacity="0.4"/>
+    <circle cx="-60" cy="0" r="2" fill="white" opacity="0.4"/>
+    <circle cx="60" cy="0" r="2" fill="white" opacity="0.4"/>
+  </g>
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>
