@@ -4,8 +4,9 @@ Orchestrates the 4-agent pipeline for deep research
 """
 
 import os
+import json
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 from agents import Runner, trace, get_current_trace
@@ -170,7 +171,13 @@ class ResearchManager:
 
         return formatted_report
     
-    async def send_email(self, report) -> Dict[str, str]:
+    async def send_email(
+        self,
+        *,
+        query: str,
+        report_data: ReportData,
+        recipient_email: Optional[str] = None,
+    ) -> Dict[str, str]:
         """
         Step 4: Use the email agent to send an email with the report
         
@@ -185,22 +192,85 @@ class ResearchManager:
         print("📧 STEP 4: Sending Email via Gmail SMTP")
         print(f"{'='*60}")
         print("Converting report to HTML...")
+        target_email = (recipient_email or os.getenv('RECIPIENT_EMAIL') or '').strip()
+
+        if not target_email:
+            raise ValueError(
+                "Recipient email address is required. Provide an email in the request or set RECIPIENT_EMAIL."
+            )
+
+        # Expose recipient to the email sender utility which reads from env
+        os.environ['RECIPIENT_EMAIL'] = target_email
         
         result = await Runner.run(
             self.email_agent,
-            report.markdown_report
+            report_data.markdown_report
         )
         
         # Extract the function call result from the agent's output
         # The email agent uses a function_tool that returns a dict
-        if hasattr(result, 'final_output'):
-            email_status = result.final_output
+        raw_output = getattr(result, 'final_output', None)
+
+        email_status: Dict[str, str]
+        if isinstance(raw_output, dict):
+            email_status = raw_output
+        elif isinstance(raw_output, str):
+            try:
+                parsed = json.loads(raw_output)
+                email_status = parsed if isinstance(parsed, dict) else {
+                    "status": "error",
+                    "message": raw_output,
+                }
+            except json.JSONDecodeError:
+                email_status = {
+                    "status": "error",
+                    "message": raw_output,
+                }
         else:
-            email_status = {"status": "unknown", "message": "No output from email agent"}
+            email_status = {
+                "status": "unknown",
+                "message": "No output from email agent",
+            }
+
+        status = email_status.get("status")
+        message = email_status.get("message", "")
+
+        if not status:
+            email_status["status"] = "unknown"
+            status = "unknown"
+        if not message:
+            email_status["message"] = ""
+
+        status_text = str(status).lower()
+        message_text = str(message).lower()
         
-        print(f"✅ Email sent!")
-        print(f"📬 Check your inbox: {os.getenv('RECIPIENT_EMAIL')}")
+        # Check for success indicators (prioritize "successfully sent" over "failed")
+        is_success = False
         
+        if "successfully sent" in message_text or "successfully" in message_text:
+            is_success = True
+        elif "success" in status_text:
+            is_success = True
+        elif "sent" in message_text and "fail" not in message_text:
+            is_success = True
+        
+        # Override status if we detected success
+        if is_success:
+            email_status["status"] = "success"
+            status = "success"
+            # Clean up the message - remove any confusing "failed" text
+            if "fail" in message_text or "successfully sent" in message_text:
+                email_status["message"] = f"Email sent successfully to {target_email}"
+                message = email_status["message"]
+
+        if status == "success":
+            print("✅ Email sent!")
+            print(f"📬 Check your inbox: {target_email}")
+        else:
+            print("⚠️ Email delivery skipped or failed")
+            if message:
+                print(f"   Reason: {message}")
+
         return email_status
     
     async def run(self, query: str) -> str:
@@ -235,7 +305,7 @@ class ResearchManager:
             report = await self.write_report(query, search_results)
             
             # Step 4: Send email
-            await self.send_email(report)
+            await self.send_email(query=query, report_data=report, recipient_email=None)
             
             self.current_status = "Complete! ✅"
             

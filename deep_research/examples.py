@@ -71,7 +71,11 @@ async def example_2_step_by_step():
     
     # Step 4: Email
     print("\n[STEP 4] Sending email...")
-    email_result = await manager.send_email(report)
+    email_result = await manager.send_email(
+        query=query,
+        report_data=report,
+        recipient_email=None,
+    )
     print(f"✅ Email status: {email_result}")
 
 

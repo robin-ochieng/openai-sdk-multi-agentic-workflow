@@ -201,7 +201,10 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
-        yield send_event('progress', {'step': 'sending_email' if email else 'complete', 'percentage': 75 if email else 100})
+        if email:
+            yield send_event('progress', {'step': 'email', 'percentage': 75})
+        else:
+            yield send_event('progress', {'step': 'writing', 'percentage': 100})
         
         # Step 4: Send email (if requested)
         if email:
@@ -222,20 +225,28 @@ async def research_event_stream(query: str, email: Optional[str] = None):
                     recipient_email=email
                 )
                 
-                yield send_event('email_sent', {
-                    'status': 'success',
-                    'message': f'Report sent to {email}'
-                })
-                
-                yield send_event('log', {
-                    'logs': [{
-                        'id': '9',
-                        'timestamp': datetime.now().isoformat(),
-                        'message': f'✅ Email sent successfully to {email}',
-                        'emoji': '✅',
-                        'type': 'success'
-                    }]
-                })
+                yield send_event('email_sent', email_result)
+
+                if email_result.get('status') == 'success':
+                    yield send_event('log', {
+                        'logs': [{
+                            'id': '9',
+                            'timestamp': datetime.now().isoformat(),
+                            'message': f'✅ Email sent successfully to {email}',
+                            'emoji': '✅',
+                            'type': 'success'
+                        }]
+                    })
+                else:
+                    yield send_event('log', {
+                        'logs': [{
+                            'id': '9',
+                            'timestamp': datetime.now().isoformat(),
+                            'message': f"⚠️ Email sending failed: {email_result.get('message', 'Unknown error')}",
+                            'emoji': '⚠️',
+                            'type': 'warning'
+                        }]
+                    })
             except Exception as e:
                 yield send_event('log', {
                     'logs': [{
@@ -246,8 +257,12 @@ async def research_event_stream(query: str, email: Optional[str] = None):
                         'type': 'warning'
                     }]
                 })
+                yield send_event('email_sent', {
+                    'status': 'error',
+                    'message': str(e),
+                })
             
-            yield send_event('progress', {'step': 'complete', 'percentage': 100})
+            yield send_event('progress', {'step': 'email', 'percentage': 100})
         
         # Final completion
         yield send_event('complete', {

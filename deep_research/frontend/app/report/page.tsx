@@ -9,13 +9,49 @@ import { ArrowLeft, FileText, Download, Share2, Clock, Calendar, TrendingUp } fr
 import { useRunStore } from '@/lib/runStore'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useMemo } from 'react'
+
+// Clean duplicate consecutive headings from markdown
+function cleanDuplicateHeadings(markdown: string): string {
+  const lines = markdown.split('\n')
+  const cleaned: string[] = []
+  let lastHeading = ''
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    
+    // Check if it's a heading (starts with #)
+    if (line.match(/^#{1,6}\s+/)) {
+      const headingText = line.replace(/^#{1,6}\s+/, '').trim().toLowerCase()
+      
+      // Skip if same heading appears consecutively (within 3 lines)
+      if (headingText === lastHeading && i - cleaned.length < 3) {
+        continue
+      }
+      
+      lastHeading = headingText
+    } else if (line.length > 0) {
+      // Reset if we hit non-empty content
+      lastHeading = ''
+    }
+    
+    cleaned.push(lines[i])
+  }
+  
+  return cleaned.join('\n')
+}
 
 export default function ReportPage() {
   const router = useRouter()
   const { reportMarkdown, query } = useRunStore()
 
+  // Clean duplicate headings from the markdown
+  const cleanedMarkdown = useMemo(() => {
+    return reportMarkdown ? cleanDuplicateHeadings(reportMarkdown) : ''
+  }, [reportMarkdown])
+
   // Calculate reading time (average 200 words per minute)
-  const wordCount = reportMarkdown ? reportMarkdown.split(/\s+/).length : 0
+  const wordCount = cleanedMarkdown ? cleanedMarkdown.split(/\s+/).length : 0
   const readingTime = Math.ceil(wordCount / 200)
   const currentDate = new Date().toLocaleDateString('en-US', { 
     year: 'numeric', 
@@ -80,7 +116,7 @@ export default function ReportPage() {
                 AI Generated
               </Badge>
             </div>
-            <h1 className="text-4xl font-bold tracking-tight mb-3">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
               {query || 'Research Report'}
             </h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -115,33 +151,42 @@ export default function ReportPage() {
 
       {/* Report Content */}
       <Card className="border-none shadow-lg">
-        <article className="prose prose-slate max-w-none p-8 md:p-12 lg:p-16 dark:prose-invert
+        <article className="report-article prose prose-lg prose-slate max-w-none p-8 md:p-12 lg:p-16 dark:prose-invert
           prose-headings:scroll-mt-20
           prose-headings:font-bold
           prose-headings:tracking-tight
           prose-h1:text-4xl
+          md:prose-h1:text-5xl
           prose-h1:mb-6
           prose-h1:mt-8
-          prose-h1:border-b
-          prose-h1:pb-3
-          prose-h1:border-slate-200
-          dark:prose-h1:border-slate-800
-          prose-h2:text-3xl
+          prose-h1:font-black
+          prose-h1:border-b-2
+          prose-h1:pb-4
+          prose-h1:border-slate-300
+          dark:prose-h1:border-slate-700
+          prose-h2:text-2xl
+          md:prose-h2:text-3xl
           prose-h2:mb-4
           prose-h2:mt-10
+          prose-h2:font-bold
           prose-h2:text-slate-900
           dark:prose-h2:text-slate-100
-          prose-h3:text-2xl
+          prose-h3:text-xl
+          md:prose-h3:text-2xl
           prose-h3:mb-3
           prose-h3:mt-8
+          prose-h3:font-semibold
           prose-h3:text-slate-800
           dark:prose-h3:text-slate-200
-          prose-h4:text-xl
+          prose-h4:text-lg
+          md:prose-h4:text-xl
           prose-h4:mb-2
           prose-h4:mt-6
+          prose-h4:font-semibold
           prose-p:text-base
-          prose-p:leading-8
-          prose-p:mb-4
+          md:prose-p:text-lg
+          prose-p:leading-relaxed
+          prose-p:mb-5
           prose-p:text-slate-700
           dark:prose-p:text-slate-300
           prose-a:text-blue-600
@@ -214,7 +259,7 @@ export default function ReportPage() {
           prose-img:my-8
         ">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {reportMarkdown}
+            {cleanedMarkdown}
           </ReactMarkdown>
         </article>
       </Card>

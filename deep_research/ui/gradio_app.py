@@ -106,7 +106,11 @@ def create_ui():
             logs.append(format_log("Converting to HTML and applying guardrails...", "🛡️"))
             yield ("\n".join(logs), report_data.markdown_report, manager.trace_url or "")
             
-            email_result = await manager.send_email(report_data)
+            email_result = await manager.send_email(
+                query=query,
+                report_data=report_data,
+                recipient_email=None
+            )
             
             # email_result is now a dict from the function_tool
             if isinstance(email_result, dict) and email_result.get('status') == 'success':
