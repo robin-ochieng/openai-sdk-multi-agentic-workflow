@@ -1,6 +1,31 @@
 {
   "version": 3,
   "middleware": {},
-  "functions": {},
+  "functions": {
+    "/api/runs/[runId]/stream/route": {
+      "files": [
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/runs/[runId]/stream/route.js"
+      ],
+      "name": "app/api/runs/[runId]/stream/route",
+      "page": "/api/runs/[runId]/stream/route",
+      "matchers": [
+        {
+          "regexp": "^/api/runs/(?<runId>[^/]+?)/stream$",
+          "originalSource": "/api/runs/[runId]/stream"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "VdGnJY4ttd2YBR3TGSp2gc9leKxT2GWJktsbaHHWvuQ="
+      }
+    }
+  },
   "sortedMiddleware": []
 }
