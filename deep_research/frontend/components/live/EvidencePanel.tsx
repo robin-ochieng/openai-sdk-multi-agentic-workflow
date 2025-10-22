@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { ExternalLink, FileText, Filter } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -79,12 +80,15 @@ export function EvidencePanel({ evidence }: EvidencePanelProps) {
                 >
                   <div className="mb-2 flex items-start gap-2">
                     {item.favicon ? (
-                      <img
+                      <Image
                         src={item.favicon}
                         alt=""
+                        width={16}
+                        height={16}
                         className="h-4 w-4 shrink-0 rounded"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
+                        unoptimized
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none'
                         }}
                       />
                     ) : (

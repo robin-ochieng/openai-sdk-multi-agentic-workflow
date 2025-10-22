@@ -68,7 +68,7 @@ export function EmailPreview({ report }: EmailPreviewProps) {
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">
-                <strong>Note:</strong> If you don't see the email in your inbox, please check your
+                <strong>Note:</strong> If you don&apos;t see the email in your inbox, please check your
                 spam or junk folder. The email was sent from the configured Gmail account.
               </p>
             </div>

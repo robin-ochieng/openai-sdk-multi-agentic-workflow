@@ -183,7 +183,6 @@ export function ResearchForm({ researchState, setResearchState }: ResearchFormPr
 
             {/* Submit Button */}
             <StartButton
-              onClick={() => handleSubmit(new Event('submit') as any)}
               disabled={researchState.isResearching}
               state={buttonState}
               queryLength={query.trim().length}

@@ -138,7 +138,6 @@ export function LiveProgress({ researchState }: LiveProgressProps) {
               (step === 'writing' && researchState.report) ||
               (step === 'sending_email' && researchState.emailSent)
             const isCurrent = currentStep === step
-            const isPending = !isComplete && !isCurrent
 
             return (
               <div key={step} className="flex flex-1 flex-col items-center gap-2">

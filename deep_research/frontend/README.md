@@ -75,7 +75,15 @@ Make sure your Python backend is running on port 7863:
 poetry run python deep_research/app.py
 ```
 
-## 📁 Project Structure
+## � Streaming Architecture
+
+- **Runtime**: `/app/api/runs/[runId]/stream` executes on the Edge runtime with `dynamic = 'force-dynamic'` to disable caching and keep the connection hot.
+- **Headers**: Responses set `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `Connection: keep-alive`, and `x-vercel-no-compression: 1` to prevent buffering on Vercel and browsers.
+- **Transport**: A `ReadableStream` proxies events from the Python backend, emitting each chunk immediately and sending heartbeat `ping` events every 15 seconds.
+- **Client**: The UI subscribes via `EventSource` in `lib/streamClient.ts`, updating Zustand state as soon as tokens arrive; reconnection logic retries with exponential backoff.
+- **Backend**: FastAPI yields SSE-formatted lines in real time, so each report phase (planning, research, writing, email) appears in the Live Research console within a second of emission.
+
+## �📁 Project Structure
 
 ```
 frontend/

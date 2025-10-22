@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Home, ArrowLeft, Download, Share2, FileText } from 'lucide-react'
+import { Home, Download, Share2, FileText } from 'lucide-react'
 import { ReportPreview } from '@/components/ReportPreview'
 
 // Mock report data
@@ -35,7 +35,7 @@ export default function SingleReportPage() {
           <div className="flex items-center justify-between">
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Link href="/home" className="flex items-center gap-1 hover:text-foreground transition-colors">
+              <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors">
                 <Home className="h-4 w-4" />
                 <span>Home</span>
               </Link>

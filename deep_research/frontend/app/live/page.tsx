@@ -40,11 +40,9 @@ function LiveResearchContent() {
     evidence,
     reportMarkdown,
     status,
-    error,
     reset,
     applyEvent,
     setActiveChannel,
-    setStatus,
     setError,
   } = useRunStore()
 
@@ -101,7 +99,7 @@ function LiveResearchContent() {
     return () => {
       cleanup()
     }
-  }, [effectiveRunId, query, email, isDemoMode])
+  }, [effectiveRunId, query, email, isDemoMode, reset, applyEvent, setError])
 
   // Show loading state
   if (isInitializing) {

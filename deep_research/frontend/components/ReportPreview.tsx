@@ -11,6 +11,7 @@ import { downloadFile, copyToClipboard } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
+import type { PluggableList } from 'unified'
 import {
   FileText,
   Download,
@@ -24,6 +25,8 @@ import {
   Lightbulb,
   BookOpen,
 } from 'lucide-react'
+
+const markdownRehypePlugins: PluggableList = [rehypeHighlight]
 
 interface ReportPreviewProps {
   report: ReportData | null
@@ -65,11 +68,6 @@ export function ReportPreview({ report, isResearching }: ReportPreviewProps) {
     downloadFile(content, `research-report-${Date.now()}.md`, 'text/markdown')
   }
 
-  const handleDownloadPDF = () => {
-    // Placeholder for PDF download - would require PDF generation library
-    alert('PDF download coming soon!')
-  }
-
   const handleShare = async () => {
     if (navigator.share) {
       try {
@@ -77,8 +75,8 @@ export function ReportPreview({ report, isResearching }: ReportPreviewProps) {
           title: 'Research Report',
           text: report.short_summary || 'Check out this research report',
         })
-      } catch (err) {
-        console.log('Share canceled')
+      } catch (shareError) {
+        console.log('Share canceled', shareError)
       }
     } else {
       // Fallback: copy link to clipboard
@@ -175,11 +173,11 @@ export function ReportPreview({ report, isResearching }: ReportPreviewProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleDownloadPDF}
+                onClick={handleDownload}
                 className="h-9"
               >
                 <Download className="mr-2 h-4 w-4" />
-                PDF
+                Download
               </Button>
               <Button
                 variant="ghost"
@@ -255,7 +253,7 @@ export function ReportPreview({ report, isResearching }: ReportPreviewProps) {
           <div className="prose prose-slate dark:prose-invert max-w-none">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight as any]}
+              rehypePlugins={markdownRehypePlugins}
               components={{
                 h1: ({ children }) => (
                   <h1 className="mb-6 border-b border-border pb-2 text-4xl font-bold">

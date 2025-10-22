@@ -5,6 +5,15 @@ const nextConfig = {
   env: {
     BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:7863',
   },
+  async redirects() {
+    return [
+      {
+        source: '/home',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

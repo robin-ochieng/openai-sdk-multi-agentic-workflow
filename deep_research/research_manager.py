@@ -15,7 +15,8 @@ from deep_research.research_agents import (
     create_writer_agent,
     create_email_agent
 )
-from .models import WebSearchPlan, ResearchSummary
+from .models import WebSearchPlan, ResearchSummary, ReportData
+from .report_formatter import format_research_report
 
 
 class ResearchManager:
@@ -147,14 +148,27 @@ class ResearchManager:
         )
         
         result = await Runner.run(self.writer_agent, input_data)
-        
-        report_length = len(result.final_output.markdown_report)
-        word_count = len(result.final_output.markdown_report.split())
-        
+
+        original_report: ReportData = result.final_output
+        formatted_markdown = format_research_report(
+            original_report.markdown_report,
+            original_report.short_summary,
+            query=query,
+        )
+
+        formatted_report = ReportData(
+            short_summary=original_report.short_summary.strip(),
+            markdown_report=formatted_markdown,
+            follow_up_questions=original_report.follow_up_questions,
+        )
+
+        report_length = len(formatted_report.markdown_report)
+        word_count = len(formatted_report.markdown_report.split())
+
         print(f"✅ Report written: {word_count} words, {report_length} characters")
-        print(f"📝 Summary: {result.final_output.short_summary}")
-        
-        return result.final_output
+        print(f"📝 Summary: {formatted_report.short_summary}")
+
+        return formatted_report
     
     async def send_email(self, report) -> Dict[str, str]:
         """

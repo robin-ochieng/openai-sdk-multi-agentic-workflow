@@ -4,5 +4,6 @@ interface ExamplesPopoverProps {
 }
 
 export function ExamplesPopover({ onSelectExample }: ExamplesPopoverProps) {
+  void onSelectExample
   return null
 }
