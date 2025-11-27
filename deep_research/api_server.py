@@ -70,6 +70,23 @@ async def research_event_stream(query: str, email: Optional[str] = None):
     """
     manager = ResearchManager()
     
+    # Queue for evidence events (to stream as they're discovered)
+    evidence_queue = asyncio.Queue()
+    evidence_id_counter = [0]  # Use list to allow mutation in closure
+    
+    def on_evidence_discovered(source: dict):
+        """Callback when a new source is discovered during search"""
+        evidence_id_counter[0] += 1
+        evidence_queue.put_nowait({
+            'id': f'src-{evidence_id_counter[0]}',
+            'url': source.get('url', ''),
+            'title': source.get('title', 'Untitled Source'),
+            'snippet': source.get('snippet', ''),
+        })
+    
+    # Set the callback on the manager
+    manager._on_evidence = on_evidence_discovered
+    
     def send_event(event_type: str, data: dict):
         """Format SSE event"""
         return f"data: {json.dumps({'type': event_type, **data})}\n\n"
@@ -144,18 +161,26 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
+        # Run searches (evidence will be collected via callback)
         search_results = await manager.perform_searches(search_plan)
         
-        yield send_event('searching_complete', {
-            'results': [
-                {
-                    'query': search_plan.searches[i].query,
-                    'summary': result[:200] + '...' if len(result) > 200 else result,
-                    'charCount': len(result)
-                }
-                for i, result in enumerate(search_results)
-            ]
-        })
+        # Drain the evidence queue and send all discovered sources
+        while not evidence_queue.empty():
+            try:
+                source = evidence_queue.get_nowait()
+                yield send_event('evidence', source)
+            except asyncio.QueueEmpty:
+                break
+        
+        # If no sources were found via the queue, send the collected sources
+        if evidence_id_counter[0] == 0 and manager.collected_sources:
+            for idx, source in enumerate(manager.collected_sources):
+                yield send_event('evidence', {
+                    'id': f'src-{idx + 1}',
+                    'url': source.get('url', ''),
+                    'title': source.get('title', 'Untitled Source'),
+                    'snippet': source.get('snippet', ''),
+                })
         
         yield send_event('log', {
             'logs': [{

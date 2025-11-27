@@ -92,6 +92,7 @@ def create_search_agent(
     search_tool = WebSearchTool(search_context_size=context_size)
     
     # Create agent with enhanced settings
+    # Include sources in response to get real URLs from web searches
     search_agent = Agent(
         name="EnhancedSearchAgent",
         instructions=instructions,
@@ -101,7 +102,11 @@ def create_search_agent(
             tool_choice="required",
             temperature=temperature,
             max_tokens=500,  # Ensure concise responses
-            response_format={"type": "text"}
+            response_format={"type": "text"},
+            # CRITICAL: Include web search sources and results to get real URLs
+            extra_body={
+                "include": ["web_search_call.results", "web_search_call.action.sources"]
+            }
         )
     )
     

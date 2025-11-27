@@ -10,7 +10,6 @@ from openai import OpenAI
 from agents import Agent, function_tool
 from typing import Dict, List, Optional, Union, Any
 from email_sender import EmailConfig, GmailSender
-from email_sender.guardrails_email import EmailGuardrails
 from datetime import datetime
 import re
 
@@ -18,19 +17,16 @@ import re
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Enhanced instructions for the email agent
+# Instructions for the email agent
 INSTRUCTIONS = (
-    "You are an advanced email composition and delivery agent capable of sending "
-    "professionally formatted HTML emails based on detailed reports. "
-    "You will be provided with a detailed report and optional parameters. "
-    "Your responsibilities include:\n"
-    "1. Converting markdown/text reports to clean, responsive HTML\n"
-    "2. Creating appropriate subject lines if not provided\n"
-    "3. Adding proper formatting with tables, headers, and styling\n"
-    "4. Including executive summaries when appropriate\n"
-    "5. Handling multiple recipients and CC/BCC if needed\n"
-    "6. Adding attachments when specified\n"
-    "Use your tools to compose and send emails with professional formatting."
+    "You are an email delivery agent. Your ONLY job is to send emails using the send_email tool.\n\n"
+    "IMPORTANT: You MUST call the send_email tool to actually send the email. Do NOT just describe what you would do.\n\n"
+    "When given a report to send:\n"
+    "1. Convert any markdown to clean HTML\n"
+    "2. Create an appropriate subject line\n"
+    "3. Call the send_email tool with: subject, html_body, and recipients\n\n"
+    "DO NOT use cc, bcc, or priority parameters - they are not supported.\n"
+    "ALWAYS call the send_email tool to complete your task."
 )
 
 
@@ -38,28 +34,18 @@ INSTRUCTIONS = (
 def send_email(
     subject: str, 
     html_body: str,
-    recipients: Optional[Union[str, List[str]]] = None,
-    cc: Optional[Union[str, List[str]]] = None,
-    bcc: Optional[Union[str, List[str]]] = None,
-    priority: str = "normal",
-    include_timestamp: bool = True,
-    add_footer: bool = True
+    recipients: Optional[Union[str, List[str]]] = None
 ) -> str:
     """
-    Send an enhanced email with multiple recipients and advanced options
+    Send an HTML email to the specified recipients.
     
     Args:
         subject: Email subject line
         html_body: HTML content of the email
-        recipients: Single email or list of recipient emails (optional, uses env default if not provided)
-        cc: Single email or list of CC recipients (optional)
-        bcc: Single email or list of BCC recipients (optional)
-        priority: Email priority - "high", "normal", or "low" (default: "normal")
-        include_timestamp: Add timestamp to email (default: True)
-        add_footer: Add professional footer (default: True)
+        recipients: Single email, comma-separated emails, or list of recipient emails (optional, uses env default if not provided)
         
     Returns:
-        Dict with status, message, and additional metadata
+        JSON string with status and message
     """
     try:
         # Get email configuration from environment
@@ -68,82 +54,76 @@ def send_email(
             gmail_app_password=os.environ.get('GMAIL_APP_PASSWORD')
         )
         
-        # Handle recipients
+        # Handle recipients - support comma-separated strings
         if recipients is None:
             recipients = os.environ.get('RECIPIENT_EMAIL')
         
         if isinstance(recipients, str):
-            recipients = [recipients]
+            # Split by comma and strip whitespace
+            recipients = [email.strip() for email in recipients.split(',') if email.strip()]
         
-        # Process CC and BCC
-        cc_list = [cc] if isinstance(cc, str) else cc or []
-        bcc_list = [bcc] if isinstance(bcc, str) else bcc or []
+        if not recipients or not recipients[0]:
+            return json.dumps({
+                "status": "error",
+                "message": "No recipient email provided"
+            })
         
-        # Initialize Gmail sender and guardrails
+        # Initialize Gmail sender
         sender = GmailSender(config)
-        guardrails = EmailGuardrails()
         
-        # Enhance HTML body
-        enhanced_body = _enhance_html_body(
-            html_body, 
-            include_timestamp, 
-            add_footer,
-            priority
-        )
+        # Add professional styling to HTML body
+        enhanced_body = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                h1, h2, h3 {{ color: #2563eb; }}
+                .container {{ max-width: 800px; margin: 0 auto; padding: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                {html_body}
+                <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+                <p style="font-size: 12px; color: #666;">
+                    Generated by Deep Research Agent on {datetime.now().strftime('%B %d, %Y at %H:%M')}
+                </p>
+            </div>
+        </body>
+        </html>
+        """
         
-        # Validate all recipients
-        all_recipients = recipients + cc_list + bcc_list
-        for recipient in all_recipients:
-            validation = guardrails.run_all_checks(
-                subject=subject,
-                body=enhanced_body,
-                recipient_email=recipient
-            )
-            
-            if not validation['passed']:
-                logger.warning(f"Guardrail check failed for {recipient}: {validation['blocking_issues']}")
-                return {
-                    "status": "blocked",
-                    "message": f"Email blocked by guardrails for {recipient}: {', '.join(validation['blocking_issues'])}",
-                    "details": validation
-                }
-        
-        # Send emails
+        # Send to each recipient
         results = []
         for recipient in recipients:
-            result = sender.send_html_email(
-                to_email=recipient,
-                subject=subject,
-                html_body=enhanced_body,
-                cc=cc_list,
-                bcc=bcc_list,
-                priority=priority
-            )
-            results.append({
-                "recipient": recipient,
-                "success": result.get('success'),
-                "message": result.get('message')
-            })
-            
-            if result.get('success'):
-                guardrails.record_send()
+            try:
+                result = sender.send_html_email(
+                    to_email=recipient,
+                    subject=subject,
+                    html_body=enhanced_body
+                )
+                results.append({
+                    "recipient": recipient,
+                    "success": result.get('success', False),
+                    "message": result.get('message', '')
+                })
                 logger.info(f"Email sent successfully to {recipient}")
-            else:
-                logger.error(f"Failed to send email to {recipient}: {result.get('message')}")
+            except Exception as e:
+                logger.error(f"Failed to send email to {recipient}: {str(e)}")
+                results.append({
+                    "recipient": recipient,
+                    "success": False,
+                    "message": str(e)
+                })
         
         # Aggregate results
         all_success = all(r['success'] for r in results)
         
         result_data = {
             "status": "success" if all_success else "partial",
-            "message": f"Email sent to {len([r for r in results if r['success']])} of {len(results)} recipients",
+            "message": f"Email successfully sent to {', '.join([r['recipient'] for r in results if r['success']])}",
             "details": results,
-            "timestamp": datetime.now().isoformat(),
-            "metadata": {
-                "subject": subject,
-                "priority": priority,
-                "total_recipients": len(all_recipients)
-            }
+            "timestamp": datetime.now().isoformat()
         }
         return json.dumps(result_data)
             

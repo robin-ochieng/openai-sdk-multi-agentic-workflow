@@ -18,6 +18,15 @@ from deep_research.research_agents import (
 )
 from .models import WebSearchPlan, ResearchSummary, ReportData
 from .report_formatter import format_research_report
+from dataclasses import dataclass
+from typing import Callable
+
+
+@dataclass
+class SearchResult:
+    """Represents a search result with summary and sources"""
+    summary: str
+    sources: List[Dict[str, str]]  # List of {url, title, snippet}
 
 
 class ResearchManager:
@@ -53,6 +62,12 @@ class ResearchManager:
         # Track progress
         self.current_status = "Idle"
         self.trace_url = None
+        
+        # Callback for streaming evidence to frontend
+        self._on_evidence: Optional[Callable[[Dict[str, str]], None]] = None
+        
+        # Collected sources for the report
+        self.collected_sources: List[Dict[str, str]] = []
     
     async def plan_searches(self, query: str) -> WebSearchPlan:
         """
@@ -98,6 +113,9 @@ class ResearchManager:
         print("🌐 STEP 2: Performing Web Searches")
         print(f"{'='*60}")
         
+        # Reset collected sources for new search
+        self.collected_sources = []
+        
         tasks = [
             asyncio.create_task(self.search(item))
             for item in search_plan.searches
@@ -105,7 +123,149 @@ class ResearchManager:
         results = await asyncio.gather(*tasks)
         
         print(f"✅ Finished searching - collected {len(results)} summaries")
+        print(f"📚 Total sources collected: {len(self.collected_sources)}")
         return results
+    
+    def _extract_sources_from_result(self, result) -> List[Dict[str, str]]:
+        """
+        Extract source URLs from WebSearchTool results.
+        
+        Sources can come from two places:
+        1. action.sources - The web pages that were searched
+        2. annotations - URL citations in the response text
+        
+        Args:
+            result: Runner.run() result object
+            
+        Returns:
+            List of source dictionaries with url, title, snippet
+        """
+        sources = []
+        seen_urls = set()
+        
+        try:
+            # Method 1: Extract from new_items (tool call results)
+            if hasattr(result, 'new_items'):
+                for item in result.new_items:
+                    if not hasattr(item, 'type'):
+                        continue
+                    
+                    # Handle web_search_call tool items
+                    if item.type == 'tool_call_item':
+                        raw_call = getattr(item, 'raw_item', None)
+                        if not raw_call:
+                            continue
+                            
+                        call_type = getattr(raw_call, 'type', None)
+                        if call_type != 'web_search_call':
+                            continue
+                            
+                        # Extract from action.sources
+                        action = getattr(raw_call, 'action', None)
+                        if action:
+                            item_sources = getattr(action, 'sources', None)
+                            if item_sources:
+                                for source in item_sources:
+                                    url = getattr(source, 'url', None)
+                                    if url and url not in seen_urls:
+                                        # Try to get title from the source or generate from URL
+                                        title = getattr(source, 'title', None) or getattr(source, 'name', None)
+                                        if not title:
+                                            # Extract domain as title
+                                            try:
+                                                from urllib.parse import urlparse
+                                                parsed = urlparse(url)
+                                                title = parsed.netloc.replace('www.', '')
+                                            except:
+                                                title = 'Web Source'
+                                        
+                                        sources.append({
+                                            'url': url,
+                                            'title': title,
+                                            'snippet': ''
+                                        })
+                                        seen_urls.add(url)
+                    
+                    # Handle message_output_item for annotations
+                    elif item.type == 'message_output_item':
+                        raw_msg = getattr(item, 'raw_item', None)
+                        if raw_msg and hasattr(raw_msg, 'content'):
+                            content = raw_msg.content
+                            if isinstance(content, list):
+                                for content_item in content:
+                                    annotations = getattr(content_item, 'annotations', None)
+                                    if annotations:
+                                        for ann in annotations:
+                                            url = getattr(ann, 'url', None)
+                                            title = getattr(ann, 'title', None)
+                                            if url and url not in seen_urls:
+                                                # Remove utm_source parameter for cleaner URLs
+                                                clean_url = url.split('?utm_source=')[0] if '?utm_source=' in url else url
+                                                sources.append({
+                                                    'url': clean_url,
+                                                    'title': title or 'Web Source',
+                                                    'snippet': ''
+                                                })
+                                                seen_urls.add(url)
+            
+            # Method 2: Also check raw_responses for more complete data
+            if hasattr(result, 'raw_responses'):
+                for resp in result.raw_responses:
+                    output = getattr(resp, 'output', None)
+                    if not output or not isinstance(output, list):
+                        continue
+                        
+                    for out_item in output:
+                        # Check for web_search_call action sources
+                        if hasattr(out_item, 'action'):
+                            action = out_item.action
+                            if action:
+                                item_sources = getattr(action, 'sources', None)
+                                if item_sources:
+                                    for source in item_sources:
+                                        url = getattr(source, 'url', None)
+                                        if url and url not in seen_urls:
+                                            title = getattr(source, 'title', None) or getattr(source, 'name', None)
+                                            if not title:
+                                                try:
+                                                    from urllib.parse import urlparse
+                                                    parsed = urlparse(url)
+                                                    title = parsed.netloc.replace('www.', '')
+                                                except:
+                                                    title = 'Web Source'
+                                            sources.append({
+                                                'url': url,
+                                                'title': title,
+                                                'snippet': ''
+                                            })
+                                            seen_urls.add(url)
+                        
+                        # Check for content annotations
+                        if hasattr(out_item, 'content'):
+                            content = out_item.content
+                            if isinstance(content, list):
+                                for content_item in content:
+                                    annotations = getattr(content_item, 'annotations', None)
+                                    if annotations:
+                                        for ann in annotations:
+                                            url = getattr(ann, 'url', None)
+                                            title = getattr(ann, 'title', None)
+                                            if url and url not in seen_urls:
+                                                clean_url = url.split('?utm_source=')[0] if '?utm_source=' in url else url
+                                                sources.append({
+                                                    'url': clean_url,
+                                                    'title': title or 'Web Source',
+                                                    'snippet': ''
+                                                })
+                                                seen_urls.add(url)
+                        
+        except Exception as e:
+            print(f"   ⚠️ Warning: Could not extract sources: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        print(f"   📚 Extracted {len(sources)} unique sources")
+        return sources
     
     async def search(self, item) -> str:
         """
@@ -122,7 +282,21 @@ class ResearchManager:
         input_data = f"Search term: {item.query}\nReason for searching: {item.reason}"
         result = await Runner.run(self.search_agent, input_data)
         
-        print(f"   ✅ Complete ({len(result.final_output)} chars)")
+        # Extract sources from the search result
+        sources = self._extract_sources_from_result(result)
+        
+        # Add to collected sources (avoid duplicates by URL)
+        existing_urls = {s['url'] for s in self.collected_sources}
+        for source in sources:
+            if source['url'] not in existing_urls:
+                self.collected_sources.append(source)
+                existing_urls.add(source['url'])
+                
+                # Call evidence callback if set (for streaming to frontend)
+                if self._on_evidence:
+                    self._on_evidence(source)
+        
+        print(f"   ✅ Complete ({len(result.final_output)} chars, {len(sources)} sources)")
         
         return result.final_output
     

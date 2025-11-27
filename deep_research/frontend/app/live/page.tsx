@@ -79,19 +79,15 @@ function LiveResearchContent() {
   const effectiveQuery = storeQuery || urlQuery || ''
   const effectiveEmail = storeEmail || urlEmail || undefined
 
-  const [debugInfo, setDebugInfo] = useState<string[]>([])
-
   // Apply event to LOCAL state for immediate UI updates
   const applyEventLocally = useCallback((event: StreamEvent) => {
     console.log('[Live] Applying event locally:', event.type, event)
-    setDebugInfo(prev => [`${new Date().toISOString().split('T')[1]} - ${event.type}`, ...prev].slice(0, 10))
     
     // Also persist to store for history
     try {
       storeApplyEvent(event)
     } catch (e) {
       console.error('[Live] Store update failed:', e)
-      setDebugInfo(prev => [`Store Error: ${e}`, ...prev])
     }
     
     switch (event.type) {
@@ -282,6 +278,7 @@ function LiveResearchContent() {
     console.log('[Live] No matching condition, stopping initialization')
     setIsInitializing(false)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted, effectiveRunId, effectiveQuery, effectiveEmail, isNewRun, storeReset, applyEventLocally])
 
   // Show loading state
@@ -356,25 +353,6 @@ function LiveResearchContent() {
           </Alert>
         </motion.div>
       )}
-
-      {/* Debug Info */}
-      <div className="fixed bottom-4 right-4 z-50 w-64 rounded-lg border bg-background p-4 shadow-lg opacity-50 hover:opacity-100 transition-opacity">
-        <h4 className="mb-2 font-bold text-xs uppercase text-muted-foreground">Debug Log</h4>
-        <div className="h-32 overflow-y-auto text-xs font-mono">
-          {debugInfo.length === 0 ? (
-            <div className="text-muted-foreground">No events received</div>
-          ) : (
-            debugInfo.map((info, i) => (
-              <div key={i} className="border-b py-1 last:border-0">{info}</div>
-            ))
-          )}
-        </div>
-        <div className="mt-2 text-xs text-muted-foreground">
-          Status: {localStatus}<br/>
-          Step: {localStep}<br/>
-          Progress: {localProgress[localStep]}%
-        </div>
-      </div>
 
       {/* 3-Column Grid Layout */}
       <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-[280px_1fr_340px]">

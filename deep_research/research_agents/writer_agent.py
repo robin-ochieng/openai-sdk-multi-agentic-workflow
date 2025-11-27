@@ -19,17 +19,30 @@ INSTRUCTIONS = (
     
     "IMPORTANT STRUCTURE GUIDELINES:\n"
     "1. Start with an 'Executive Summary' section (200-300 words) that provides key findings and recommendations\n"
-    "2. Follow with a 'Table of Contents' that lists all major sections with subsections\n"
-    "3. Include an 'Introduction' section that contextualizes the research question\n"
+    "2. Follow with an 'Introduction' section (150-250 words) that:\n"
+    "   - Introduces the topic and its relevance\n"
+    "   - States the purpose and scope of the report\n"
+    "   - Provides context and background\n"
+    "   - Outlines what the report will cover\n"
+    "3. DO NOT include a Table of Contents - go straight into the content\n"
     "4. Create logical main body sections that thoroughly explore the topic:\n"
     "   - Current State Analysis\n"
     "   - Key Findings and Insights\n"
+    "   - Technical Aspects (if applicable)\n"
+    "   - Technological Trends\n"
+    "   - Industry Demands\n"
     "   - Comparative Analysis (if applicable)\n"
     "   - Challenges and Opportunities\n"
     "   - Future Outlook/Trends\n"
     "5. Add a 'Recommendations' section with actionable insights\n"
     "6. End with a 'Conclusion' section summarizing key takeaways\n"
     "7. Include a 'References' section with all cited sources\n\n"
+    
+    "CRITICAL RULES:\n"
+    "- NEVER include a 'Table of Contents' section\n"
+    "- Include EXACTLY ONE 'Introduction' section (right after Executive Summary)\n"
+    "- Each section heading should appear ONLY ONCE in the entire report\n"
+    "- Do NOT duplicate any section headings\n\n"
     
     "FORMATTING RULES:\n"
     "- Use ## for main section headings\n"
@@ -38,8 +51,7 @@ INSTRUCTIONS = (
     "- Include bullet points and numbered lists for clarity\n"
     "- Add tables for comparative data using markdown table syntax\n"
     "- Use **bold** for key terms and *italics* for emphasis\n"
-    "- Include relevant quotes in blockquotes using >\n"
-    "- Do NOT duplicate section headings\n\n"
+    "- Include relevant quotes in blockquotes using >\n\n"
     
     "CONTENT REQUIREMENTS:\n"
     "- Synthesize information from multiple sources\n"
@@ -200,19 +212,44 @@ def post_process_report(markdown_report: str) -> str:
     Returns:
         Cleaned and formatted markdown report
     """
-    # Remove duplicate headings
     lines = markdown_report.split('\n')
-    seen_headings = set()
     cleaned_lines = []
+    seen_headings = set()
+    skip_until_next_heading = False
     
-    for line in lines:
-        if line.startswith('#'):
-            heading = line.strip()
-            if heading not in seen_headings:
-                seen_headings.add(heading)
-                cleaned_lines.append(line)
-        else:
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped_line = line.strip().lower()
+        
+        # Check if this is a heading
+        if line.strip().startswith('#'):
+            heading_text = line.strip().lstrip('#').strip().lower()
+            
+            # Skip Table of Contents section entirely
+            if 'table of contents' in heading_text or heading_text == 'contents':
+                skip_until_next_heading = True
+                i += 1
+                continue
+            
+            # Check for duplicate headings (skip duplicates)
+            if heading_text in seen_headings:
+                skip_until_next_heading = True
+                i += 1
+                continue
+            
+            # This is a valid, non-duplicate heading
+            seen_headings.add(heading_text)
+            skip_until_next_heading = False
             cleaned_lines.append(line)
+        else:
+            # Skip content if we're in a section to skip
+            if skip_until_next_heading:
+                i += 1
+                continue
+            cleaned_lines.append(line)
+        
+        i += 1
     
     # Ensure proper spacing between sections
     report = '\n'.join(cleaned_lines)

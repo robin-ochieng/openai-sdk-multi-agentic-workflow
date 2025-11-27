@@ -4,12 +4,11 @@ import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, FileText, Download, Share2, Clock, Calendar, TrendingUp } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Clock, Calendar, Loader2 } from 'lucide-react'
 import { useRunStore } from '@/lib/runStore'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 // Clean duplicate consecutive headings from markdown
 function cleanDuplicateHeadings(markdown: string): string {
@@ -44,6 +43,8 @@ function cleanDuplicateHeadings(markdown: string): string {
 export default function ReportPage() {
   const router = useRouter()
   const { reportMarkdown, query } = useRunStore()
+  const reportRef = useRef<HTMLDivElement>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Clean duplicate headings from the markdown
   const cleanedMarkdown = useMemo(() => {
@@ -58,6 +59,56 @@ export default function ReportPage() {
     month: 'long', 
     day: 'numeric' 
   })
+
+  // Generate filename from query
+  const generateFilename = () => {
+    const sanitized = (query || 'research-report')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 50)
+    const date = new Date().toISOString().split('T')[0]
+    return `${sanitized}-${date}.pdf`
+  }
+
+  // Download report as PDF
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) return
+    
+    setIsDownloading(true)
+    
+    try {
+      // Dynamically import html2pdf to avoid SSR issues
+      const html2pdf = (await import('html2pdf.js')).default
+      
+      const element = reportRef.current
+      const filename = generateFilename()
+      
+      const opt = {
+        margin: [15, 15, 15, 15],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          logging: false
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      }
+      
+      await html2pdf().set(opt).from(element).save()
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   // Show empty state if no report
   if (!reportMarkdown) {
@@ -107,15 +158,6 @@ export default function ReportPage() {
         {/* Report Title & Actions */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-3">
-              <Badge variant="secondary" className="text-xs">
-                Research Report
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                <TrendingUp className="mr-1 h-3 w-3" />
-                AI Generated
-              </Badge>
-            </div>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
               {query || 'Research Report'}
             </h1>
@@ -134,16 +176,24 @@ export default function ReportPage() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </Button>
-            <Button variant="outline" size="sm">
-              <Share2 className="mr-2 h-4 w-4" />
-              Share
-            </Button>
-          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleDownloadPDF}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -151,7 +201,9 @@ export default function ReportPage() {
 
       {/* Report Content */}
       <Card className="border-none shadow-lg">
-        <article className="report-article prose prose-lg prose-slate max-w-none p-8 md:p-12 lg:p-16 dark:prose-invert
+        <article 
+          ref={reportRef}
+          className="report-article prose prose-lg prose-slate max-w-none p-8 md:p-12 lg:p-16 dark:prose-invert
           prose-headings:scroll-mt-20
           prose-headings:font-bold
           prose-headings:tracking-tight

@@ -250,6 +250,23 @@ function transformBackendEvent(data: unknown): StreamPayload[] {
     ]
   }
 
+  // Handle direct evidence events from backend
+  if (eventType === 'evidence') {
+    const url = toString(data.url)
+    if (!url) return []
+    
+    return [
+      {
+        type: 'evidence',
+        id: toString(data.id, `evidence-${Date.now()}`),
+        title: toString(data.title, 'Untitled Source'),
+        url: url,
+        snippet: toString(data.snippet, ''),
+        favicon: data.favicon as string | null | undefined,
+      },
+    ]
+  }
+
   if (eventType === 'searching_complete' && Array.isArray(data.results)) {
     return data.results
       .map((result, index): StreamPayload | null => {
