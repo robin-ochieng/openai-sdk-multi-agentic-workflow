@@ -59,8 +59,18 @@ export default function HomePage() {
     // Reset store with new run data
     reset(runId, values.query, values.email || undefined)
     
-    // Navigate to live research page - streaming starts automatically
-    router.push(`/live?runId=${runId}`)
+    // Navigate to live research page with new flag to ensure fresh stream
+    // Pass query in URL to avoid hydration timing issues with Zustand store
+    const params = new URLSearchParams({
+      runId,
+      query: values.query,
+      new: '1',
+    })
+    if (values.email) {
+      params.set('email', values.email)
+    }
+    
+    router.push(`/live?${params.toString()}`)
   }
 
   return (
@@ -73,16 +83,6 @@ export default function HomePage() {
       >
         {/* Header */}
         <div className="mb-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary"
-          >
-            <Sparkles className="h-4 w-4" />
-            <span>AI-Powered Research</span>
-          </motion.div>
-          
           <h1 className="mb-3 text-4xl font-bold tracking-tight md:text-5xl">
             Deep Research Agent
           </h1>

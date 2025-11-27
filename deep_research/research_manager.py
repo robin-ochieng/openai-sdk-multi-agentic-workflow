@@ -202,9 +202,23 @@ class ResearchManager:
         # Expose recipient to the email sender utility which reads from env
         os.environ['RECIPIENT_EMAIL'] = target_email
         
+        # Build explicit instruction for the email agent to send the email
+        email_instruction = f"""
+IMPORTANT: You MUST use the send_email tool to send this report. Do NOT just describe or propose - actually send it.
+
+Send an email with the following details:
+- Recipients: {target_email}
+- Subject: Research Report: {query[:50]}{'...' if len(query) > 50 else ''}
+- Priority: normal
+
+Convert the following report to professional HTML and send it immediately:
+
+{report_data.markdown_report}
+"""
+        
         result = await Runner.run(
             self.email_agent,
-            report_data.markdown_report
+            email_instruction
         )
         
         # Extract the function call result from the agent's output

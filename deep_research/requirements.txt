@@ -15,6 +15,9 @@ langchain>=0.1.0         # LangChain (required for LangSmith integration)
 fastapi>=0.104.0         # FastAPI framework
 uvicorn>=0.24.0          # ASGI server
 
+# Database dependencies
+supabase>=2.0.0          # Supabase Python client
+
 # Email dependencies (from parent project)
 # These should already be installed if using the main project
 

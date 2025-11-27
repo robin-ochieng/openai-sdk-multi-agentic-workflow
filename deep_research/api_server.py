@@ -86,7 +86,7 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
-        yield send_event('progress', {'step': 'planning', 'percentage': 0})
+        yield send_event('progress', {'step': 'planning', 'percentage': 10})
         
         # Step 1: Plan searches
         yield send_event('log', {
@@ -99,7 +99,13 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
+        # Show progress during planning
+        yield send_event('progress', {'step': 'planning', 'percentage': 30})
+        
         search_plan = await manager.plan_searches(query)
+        
+        # Mark planning as complete
+        yield send_event('progress', {'step': 'planning', 'percentage': 100})
         
         yield send_event('planning_complete', {
             'plan': {
@@ -124,7 +130,8 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
-        yield send_event('progress', {'step': 'searching', 'percentage': 25})
+        # Move to research/searching phase
+        yield send_event('progress', {'step': 'searching', 'percentage': 10})
         
         # Step 2: Perform searches
         yield send_event('log', {
@@ -160,7 +167,9 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
-        yield send_event('progress', {'step': 'writing', 'percentage': 50})
+        # Mark searching as complete, move to writing
+        yield send_event('progress', {'step': 'searching', 'percentage': 100})
+        yield send_event('progress', {'step': 'writing', 'percentage': 10})
         
         # Step 3: Write report
         yield send_event('log', {
@@ -201,10 +210,11 @@ async def research_event_stream(query: str, email: Optional[str] = None):
             }]
         })
         
+        # Mark writing as complete
+        yield send_event('progress', {'step': 'writing', 'percentage': 100})
+        
         if email:
-            yield send_event('progress', {'step': 'email', 'percentage': 75})
-        else:
-            yield send_event('progress', {'step': 'writing', 'percentage': 100})
+            yield send_event('progress', {'step': 'email', 'percentage': 10})
         
         # Step 4: Send email (if requested)
         if email:

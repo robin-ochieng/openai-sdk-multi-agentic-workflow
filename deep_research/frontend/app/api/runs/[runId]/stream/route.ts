@@ -1,9 +1,13 @@
 import { NextRequest } from 'next/server'
 import { unstable_noStore as noStore } from 'next/cache'
+import http from 'http'
 
-export const runtime = 'edge'
+// Use nodejs runtime for reliable localhost connections
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+// Disable response size limit for streaming
+export const maxDuration = 300 // 5 minutes max
 
 const DEFAULT_BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:7863'
 const HEARTBEAT_INTERVAL_MS = 15_000
@@ -19,141 +23,170 @@ const SSE_HEADERS: Record<string, string> = {
 type StreamPayload = { type: string; [key: string]: unknown }
 
 type RouteParams = {
-  params: {
+  params: Promise<{
     runId: string
-  }
+  }>
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   noStore()
 
+  const { runId } = await params
   const query = request.nextUrl.searchParams.get('query')
   const email = request.nextUrl.searchParams.get('email')
-  const { runId } = params
+
+  console.log('[SSE Route] Request received:', { runId, query, email })
 
   if (!query) {
+    console.log('[SSE Route] Missing query parameter')
     return jsonError('Query parameter is required for streaming', 400)
   }
 
-  const upstreamResponse = await fetch(`${DEFAULT_BACKEND_URL}/api/research`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
-    cache: 'no-store',
-    body: JSON.stringify({
-      run_id: runId,
-      query,
-      email: email || null,
-    }),
-  })
+  console.log('[SSE Route] Connecting to backend:', DEFAULT_BACKEND_URL)
 
-  if (!upstreamResponse.ok) {
-    const message = await safeReadText(upstreamResponse)
-    return jsonError(
-      `Backend request failed (${upstreamResponse.status}): ${message || 'Unknown error'}`,
-      upstreamResponse.status
-    )
-  }
-
-  const upstreamBody = upstreamResponse.body
-
-  if (!upstreamBody) {
-    return jsonError('Backend did not return a readable stream', 502)
-  }
-
+  // Use native http module for proper streaming support
   const encoder = new TextEncoder()
-  const decoder = new TextDecoder()
-  const reader = upstreamBody.getReader()
-
+  
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      let buffer = ''
+      let isClosed = false
       let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
 
-      const emit = (payload: StreamPayload) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+      const safeClose = () => {
+        if (!isClosed) {
+          isClosed = true
+          if (heartbeatTimer) {
+            clearTimeout(heartbeatTimer)
+            heartbeatTimer = null
+          }
+          try {
+            controller.close()
+          } catch (e) {
+            // Controller already closed
+          }
+        }
       }
 
-      const emitError = (message: string) => {
-        emit({ type: 'error', message })
+      const emit = (payload: StreamPayload) => {
+        if (isClosed) return
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+        } catch (e) {
+          // Controller closed
+        }
       }
 
       const scheduleHeartbeat = () => {
+        if (isClosed) return
         heartbeatTimer = setTimeout(() => {
-          controller.enqueue(encoder.encode('event: ping\ndata: {}\n\n'))
+          if (isClosed) return
+          try {
+            controller.enqueue(encoder.encode('event: ping\ndata: {}\n\n'))
+          } catch (e) {
+            // Controller closed
+          }
           scheduleHeartbeat()
         }, HEARTBEAT_INTERVAL_MS)
       }
 
-      scheduleHeartbeat()
+      // Parse backend URL
+      const backendUrl = new URL(`${DEFAULT_BACKEND_URL}/api/research`)
+      
+      const postData = JSON.stringify({
+        run_id: runId,
+        query,
+        email: email || null,
+      })
 
-      const pump = async () => {
-        try {
-          while (true) {
-            const { value, done } = await reader.read()
-            if (done) break
-            if (!value) continue
-
-            buffer += decoder.decode(value, { stream: true })
-            buffer = flushBuffer(buffer, emit)
-          }
-
-        } catch (error) {
-          console.error('[SSE] Proxy stream error:', error)
-          emitError(error instanceof Error ? error.message : 'Stream interrupted')
-        } finally {
-          if (heartbeatTimer) {
-            clearTimeout(heartbeatTimer)
-          }
-          controller.close()
-          reader.releaseLock()
-        }
+      const options: http.RequestOptions = {
+        hostname: backendUrl.hostname,
+        port: backendUrl.port || 80,
+        path: backendUrl.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'Accept': 'text/event-stream',
+        },
       }
 
-      pump()
-    },
-    cancel() {
-      reader.cancel().catch(() => undefined)
+      console.log('[SSE Route] Making HTTP request to backend')
+
+      const req = http.request(options, (res) => {
+        console.log('[SSE Route] Backend response status:', res.statusCode)
+
+        if (res.statusCode !== 200) {
+          emit({ type: 'error', message: `Backend returned status ${res.statusCode}` })
+          safeClose()
+          return
+        }
+
+        scheduleHeartbeat()
+
+        let buffer = ''
+        let chunkCount = 0
+
+        res.on('data', (chunk: Buffer) => {
+          if (isClosed) return
+          
+          chunkCount++
+          const chunkStr = chunk.toString()
+          console.log(`[SSE Route] Chunk #${chunkCount}:`, chunkStr.substring(0, 80))
+          buffer += chunkStr
+
+          // Process complete events from buffer
+          let boundary = buffer.indexOf('\n\n')
+          while (boundary !== -1) {
+            const rawEvent = buffer.slice(0, boundary)
+            buffer = buffer.slice(boundary + 2)
+
+            const dataSegment = extractData(rawEvent)
+            if (dataSegment) {
+              if (dataSegment === '[DONE]') {
+                console.log('[SSE Route] Received [DONE], closing stream')
+                emit({ type: 'done' })
+              } else {
+                try {
+                  const parsed = JSON.parse(dataSegment)
+                  console.log('[SSE Route] Parsed event:', parsed.type)
+                  const transformed = transformBackendEvent(parsed)
+                  transformed.forEach(emit)
+                } catch (error) {
+                  console.error('[SSE Route] Failed to parse:', error)
+                }
+              }
+            }
+
+            boundary = buffer.indexOf('\n\n')
+          }
+        })
+
+        res.on('end', () => {
+          console.log(`[SSE Route] Backend stream ended after ${chunkCount} chunks`)
+          safeClose()
+        })
+
+        res.on('error', (error) => {
+          console.error('[SSE Route] Response error:', error)
+          emit({ type: 'error', message: error.message || 'Response error' })
+          safeClose()
+        })
+      })
+
+      req.on('error', (error) => {
+        console.error('[SSE Route] Request error:', error)
+        emit({ type: 'error', message: error.message || 'Request error' })
+        safeClose()
+      })
+
+      req.write(postData)
+      req.end()
     },
   })
 
   return new Response(stream, {
     headers: SSE_HEADERS,
   })
-}
-
-function flushBuffer(buffer: string, emit: (payload: StreamPayload) => void): string {
-  let working = buffer
-
-  while (true) {
-    const boundary = working.indexOf('\n\n')
-    if (boundary === -1) break
-
-    const rawEvent = working.slice(0, boundary)
-    working = working.slice(boundary + 2)
-
-    const dataSegment = extractData(rawEvent)
-    if (!dataSegment) {
-      continue
-    }
-
-    if (dataSegment === '[DONE]') {
-      emit({ type: 'done' })
-      continue
-    }
-
-    try {
-      const parsed = JSON.parse(dataSegment)
-      const transformed = transformBackendEvent(parsed)
-      transformed.forEach(emit)
-    } catch (error) {
-      console.error('[SSE] Failed to parse backend payload:', error, dataSegment)
-    }
-  }
-
-  return working
 }
 
 function extractData(rawEvent: string): string | null {
@@ -206,10 +239,12 @@ function transformBackendEvent(data: unknown): StreamPayload[] {
   }
 
   if (eventType === 'progress') {
+    const mappedStep = mapStep(toString(data.step))
+    console.log('[SSE Transform] Progress event:', { original: data.step, mapped: mappedStep, value: data.percentage })
     return [
       {
         type: 'step',
-        step: mapStep(toString(data.step)),
+        step: mappedStep,
         value: toNumber(data.percentage),
       },
     ]
@@ -316,13 +351,4 @@ function jsonError(message: string, status = 500): Response {
       'Cache-Control': 'no-store',
     },
   })
-}
-
-async function safeReadText(response: Response): Promise<string> {
-  try {
-    return await response.text()
-  } catch (error) {
-    console.error('[SSE] Failed to read upstream error body:', error)
-    return ''
-  }
 }

@@ -1,31 +1,110 @@
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Home, Download, Share2, FileText } from 'lucide-react'
+import { Home, Download, Share2, FileText, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react'
 import { ReportPreview } from '@/components/ReportPreview'
-
-// Mock report data
-const mockReport = {
-  markdown_report: `# Comparison of the Eastern and Western NBA Conferences
-
-## Introduction
-The NBA is divided into two main conferences: the Eastern Conference and the Western Conference...
-
-## Key Findings
-- Eastern Conference has shown consistent growth
-- Western Conference maintains competitive balance
-- Individual player performances drive conference dynamics`,
-  short_summary: 'Comprehensive analysis of NBA conferences performance',
-  word_count: 658,
-  title: 'NBA Conference Analysis 2022-2025',
-  sources: []
-}
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useHistoryStore } from '@/lib/historyStore'
+import { useRunStore } from '@/lib/runStore'
+import { useMemo } from 'react'
 
 export default function SingleReportPage() {
   const params = useParams()
+  const router = useRouter()
   const reportId = params.id as string
+
+  // Get run from history store
+  const { getRun } = useHistoryStore()
+  const historyRun = useMemo(() => getRun(reportId), [getRun, reportId])
+
+  // Also check current run store (for just-completed research)
+  const currentRun = useRunStore()
+  const isCurrentRun = currentRun.runId === reportId
+
+  // Determine which data to use
+  const report = useMemo(() => {
+    if (isCurrentRun && currentRun.reportMarkdown) {
+      return {
+        markdown_report: currentRun.reportMarkdown,
+        short_summary: currentRun.query,
+        word_count: currentRun.reportMarkdown.split(/\s+/).length,
+        title: currentRun.query,
+        sources: currentRun.evidence.map(e => e.url),
+      }
+    }
+    
+    if (historyRun) {
+      return {
+        markdown_report: historyRun.reportMarkdown,
+        short_summary: historyRun.query,
+        word_count: historyRun.wordCount,
+        title: historyRun.query,
+        sources: historyRun.evidence.map(e => e.url),
+      }
+    }
+
+    return null
+  }, [isCurrentRun, currentRun, historyRun])
+
+  // Handle download as markdown
+  const handleDownloadMarkdown = () => {
+    if (!report) return
+    
+    const blob = new Blob([report.markdown_report], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `research-report-${reportId}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  // Handle share
+  const handleShare = async () => {
+    if (!report) return
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: report.title,
+          text: report.short_summary,
+          url: window.location.href,
+        })
+      } catch (err) {
+        // User cancelled or error
+        console.log('Share cancelled or failed:', err)
+      }
+    } else {
+      // Fallback: copy to clipboard
+      await navigator.clipboard.writeText(window.location.href)
+      alert('Link copied to clipboard!')
+    }
+  }
+
+  // Not found state
+  if (!report) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Report not found. It may have been deleted or hasn't been synced yet.
+            </AlertDescription>
+          </Alert>
+          <Button onClick={() => router.push('/reports')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Reports
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen">
@@ -44,26 +123,16 @@ export default function SingleReportPage() {
                 Reports
               </Link>
               <span>•</span>
-              <span className="text-foreground font-medium">#{reportId}</span>
+              <span className="text-foreground font-medium line-clamp-1 max-w-[200px]">
+                {report.title}
+              </span>
             </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2">
               <button
                 className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
-                onClick={() => {
-                  // Handle download
-                }}
-              >
-                <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">PDF</span>
-              </button>
-              
-              <button
-                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
-                onClick={() => {
-                  // Handle markdown download
-                }}
+                onClick={handleDownloadMarkdown}
               >
                 <FileText className="h-4 w-4" />
                 <span className="hidden sm:inline">Markdown</span>
@@ -71,15 +140,7 @@ export default function SingleReportPage() {
 
               <button
                 className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                onClick={() => {
-                  // Handle share
-                  if (navigator.share) {
-                    navigator.share({
-                      title: mockReport.title,
-                      text: mockReport.short_summary,
-                    })
-                  }
-                }}
+                onClick={handleShare}
               >
                 <Share2 className="h-4 w-4" />
                 <span className="hidden sm:inline">Share</span>
@@ -98,7 +159,7 @@ export default function SingleReportPage() {
             transition={{ duration: 0.4 }}
           >
             <ReportPreview
-              report={mockReport}
+              report={report}
               isResearching={false}
             />
           </motion.div>

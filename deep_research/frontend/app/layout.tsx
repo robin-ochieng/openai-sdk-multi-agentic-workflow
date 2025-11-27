@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Sidebar } from "@/components/SidebarNew"
-import { Topbar } from "@/components/Topbar"
+import { AppLayout } from "../components/AppLayout"
+import { Providers } from "./providers"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -51,23 +51,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex h-screen overflow-hidden">
-            {/* Desktop Sidebar - Fixed on md+ */}
-            <div className="hidden md:block">
-              <Sidebar />
-            </div>
-
-            {/* Main Content Area */}
-            <div className="flex flex-1 flex-col overflow-hidden">
-              {/* Topbar with mobile menu and theme toggle */}
-              <Topbar />
-
-              {/* Page Content with gradient background */}
-              <main className="flex-1 overflow-auto bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-                {children}
-              </main>
-            </div>
-          </div>
+          <Providers>
+            <AppLayout>{children}</AppLayout>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>

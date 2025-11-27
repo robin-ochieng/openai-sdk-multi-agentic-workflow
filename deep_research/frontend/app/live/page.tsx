@@ -1,13 +1,14 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { AlertCircle, FileText } from 'lucide-react'
 import Link from 'next/link'
 
-import { useRunStore } from '@/lib/runStore'
-import { startSSE, startMockSSE } from '@/lib/streamClient'
+import { useRunStore, type ResearchStep, type Channel, type LogEntry, type EvidenceItem } from '@/lib/runStore'
+import { useHistoryStore, createHistoryRunFromState } from '@/lib/historyStore'
+import { startSSE, StreamEvent } from '@/lib/streamClient'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -23,83 +24,265 @@ import {
   PageHeaderSkeleton,
 } from '@/components/live/skeletons'
 
+const STEP_ORDER: ResearchStep[] = ['planning', 'research', 'writing', 'email']
+
+const initialProgress: Record<ResearchStep, number> = {
+  planning: 0,
+  research: 0,
+  writing: 0,
+  email: 0,
+}
+
 function LiveResearchContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isInitializing, setIsInitializing] = useState(true)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+  const hasStartedStreaming = useRef(false)
+  const hasSavedToHistory = useRef(false)
+  
+  // LOCAL STATE for real-time updates (not persisted)
+  const [localStep, setLocalStep] = useState<ResearchStep>('planning')
+  const [localProgress, setLocalProgress] = useState<Record<ResearchStep, number>>({ ...initialProgress })
+  const [localLogs, setLocalLogs] = useState<LogEntry[]>([])
+  const [localEvidence, setLocalEvidence] = useState<EvidenceItem[]>([])
+  const [localReport, setLocalReport] = useState<string | undefined>(undefined)
+  const [localStatus, setLocalStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [localError, setLocalError] = useState<string | undefined>(undefined)
+  const [localActiveChannel, setLocalActiveChannel] = useState<Channel>('planner')
 
-  const {
-    runId,
-    query,
-    email,
-    step,
-    progress,
-    activeChannel,
-    logs,
-    evidence,
-    reportMarkdown,
-    status,
-    reset,
-    applyEvent,
-    setActiveChannel,
-    setError,
-  } = useRunStore()
+  // Ensure client-side hydration
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Get store functions for persistence (not for reading during stream)
+  const storeReset = useRunStore((state) => state.reset)
+  const storeApplyEvent = useRunStore((state) => state.applyEvent)
+  const storeRunId = useRunStore((state) => state.runId)
+  const storeQuery = useRunStore((state) => state.query)
+  const storeEmail = useRunStore((state) => state.email)
+  const storeStatus = useRunStore((state) => state.status)
+  const storeLogs = useRunStore((state) => state.logs)
+
+  const { addRun } = useHistoryStore()
 
   // Get runId from URL or store
   const urlRunId = searchParams.get('runId')
-  const isDemoMode = searchParams.get('demo') === '1'
-  const effectiveRunId = urlRunId || runId
+  const urlQuery = searchParams.get('query')
+  const urlEmail = searchParams.get('email')
+  const isNewRun = searchParams.get('new') === '1'
+  const effectiveRunId = urlRunId || storeRunId
+  
+  // Use URL query as fallback if store query is empty (hydration timing issue)
+  const effectiveQuery = storeQuery || urlQuery || ''
+  const effectiveEmail = storeEmail || urlEmail || undefined
 
-  // Redirect to home if no query
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
+
+  // Apply event to LOCAL state for immediate UI updates
+  const applyEventLocally = useCallback((event: StreamEvent) => {
+    console.log('[Live] Applying event locally:', event.type, event)
+    setDebugInfo(prev => [`${new Date().toISOString().split('T')[1]} - ${event.type}`, ...prev].slice(0, 10))
+    
+    // Also persist to store for history
+    try {
+      storeApplyEvent(event)
+    } catch (e) {
+      console.error('[Live] Store update failed:', e)
+      setDebugInfo(prev => [`Store Error: ${e}`, ...prev])
+    }
+    
+    switch (event.type) {
+      case 'step': {
+        const stepIndex = STEP_ORDER.indexOf(event.step)
+        setLocalStep(event.step)
+        setLocalProgress(prev => {
+          const updated = { ...prev, [event.step]: event.value }
+          // Ensure earlier phases are marked complete
+          if (stepIndex > 0) {
+            for (let i = 0; i < stepIndex; i++) {
+              const key = STEP_ORDER[i]
+              if (updated[key] < 100) {
+                updated[key] = 100
+              }
+            }
+          }
+          console.log('[Live] Updated local progress:', updated)
+          return updated
+        })
+        break
+      }
+      case 'log':
+        setLocalLogs(prev => [...prev, {
+          channel: event.channel,
+          ts: event.ts,
+          level: event.level,
+          text: event.text,
+        }])
+        // Auto-switch channel based on log
+        const channelMap: Record<Channel, ResearchStep> = {
+          planner: 'planning',
+          web: 'research',
+          synthesizer: 'writing',
+          editor: 'email',
+        }
+        if (channelMap[event.channel]) {
+          setLocalActiveChannel(event.channel)
+        }
+        break
+      case 'evidence':
+        setLocalEvidence(prev => [...prev, {
+          id: event.id,
+          title: event.title,
+          url: event.url,
+          snippet: event.snippet,
+          favicon: event.favicon,
+        }])
+        break
+      case 'report':
+        setLocalReport(event.markdown)
+        break
+      case 'done':
+        setLocalStatus('done')
+        // Mark all steps complete
+        setLocalProgress({
+          planning: 100,
+          research: 100,
+          writing: 100,
+          email: 100,
+        })
+        break
+      case 'error':
+        setLocalStatus('error')
+        setLocalError(event.message)
+        break
+    }
+  }, [storeApplyEvent])
+
+  // Save to history when research completes
   useEffect(() => {
-    if (!query && !isInitializing) {
+    if ((localStatus === 'done' || localStatus === 'error') && localReport && !hasSavedToHistory.current) {
+      hasSavedToHistory.current = true
+      const historyRun = createHistoryRunFromState({
+        runId: storeRunId,
+        query: storeQuery,
+        email: storeEmail,
+        reportMarkdown: localReport,
+        evidence: localEvidence,
+        logs: localLogs,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        status: localStatus,
+        error: localError,
+      })
+      if (historyRun) {
+        addRun(historyRun)
+        console.log('[History] Saved run to history:', historyRun.runId)
+      }
+    }
+  }, [localStatus, localReport, storeRunId, storeQuery, storeEmail, localEvidence, localLogs, localError, addRun])
+
+  // Redirect to home if no query and not resuming
+  useEffect(() => {
+    if (!effectiveQuery && !isInitializing) {
       router.push('/')
     }
-  }, [query, isInitializing, router])
+  }, [effectiveQuery, isInitializing, router])
 
   // Initialize and start streaming
   useEffect(() => {
-    if (!effectiveRunId || !query) {
+    // Wait for client-side hydration
+    if (!isMounted) {
+      console.log('[Live] Waiting for mount...')
+      return
+    }
+
+    console.log('[Live] Effect running with:', { 
+      effectiveRunId, 
+      effectiveQuery, 
+      localStatus, 
+      isNewRun, 
+      storeRunId,
+      hasStarted: hasStartedStreaming.current 
+    })
+
+    // Case 1: New run - always start fresh streaming
+    if (isNewRun && effectiveRunId && effectiveQuery) {
+      // Skip if we already started streaming for this exact run
+      if (hasStartedStreaming.current && effectiveRunId === storeRunId) {
+        console.log('[Live] Already streaming this run, skipping')
+        setIsInitializing(false)
+        return
+      }
+
+      hasStartedStreaming.current = true
+      hasSavedToHistory.current = false
+
+      // Reset local state
+      setLocalStep('planning')
+      setLocalProgress({ ...initialProgress })
+      setLocalLogs([])
+      setLocalEvidence([])
+      setLocalReport(undefined)
+      setLocalStatus('running')
+      setLocalError(undefined)
+      setLocalActiveChannel('planner')
+
+      // Reset store for persistence
+      console.log('[Live] Starting NEW research run:', { runId: effectiveRunId, query: effectiveQuery })
+      storeReset(effectiveRunId, effectiveQuery, effectiveEmail)
+      setIsInitializing(false)
+
+      // Start streaming
+      const cleanup = startSSE({
+        runId: effectiveRunId,
+        query: effectiveQuery,
+        email: effectiveEmail,
+        onEvent: applyEventLocally,
+        onClose: () => {
+          console.log('[Stream] Connection closed')
+        },
+        onError: (err) => {
+          console.error('[Stream] Error:', err)
+          setLocalError(err.message)
+          setLocalStatus('error')
+          setConnectionError(err.message)
+        },
+      })
+
+      return () => {
+        cleanup()
+      }
+    }
+
+    // Case 2: Resuming a completed/errored run - just display from store
+    if (effectiveRunId === storeRunId && (storeStatus === 'done' || storeStatus === 'error')) {
+      console.log('[Live] Showing completed/errored run')
       setIsInitializing(false)
       return
     }
 
-    // Reset state for new run
-    reset(effectiveRunId, query, email)
+    // Case 3: Resuming a running state - continue displaying from store
+    if (effectiveRunId === storeRunId && storeStatus === 'running' && storeLogs.length > 0) {
+      console.log('[Live] Resuming running state')
+      setIsInitializing(false)
+      return
+    }
+
+    // Case 4: No valid run data - go back home
+    if (!effectiveRunId || !effectiveQuery) {
+      console.log('[Live] Missing runId or query, cannot start')
+      setIsInitializing(false)
+      return
+    }
+
+    // Default: Nothing matched, just stop initializing
+    console.log('[Live] No matching condition, stopping initialization')
     setIsInitializing(false)
 
-    // Start streaming (mock or real)
-    const cleanup = isDemoMode
-      ? startMockSSE({
-          onEvent: (event) => {
-            applyEvent(event)
-          },
-          onClose: () => {
-            console.log('[Stream] Connection closed')
-          },
-        })
-      : startSSE({
-          runId: effectiveRunId,
-          query,
-          email,
-          onEvent: (event) => {
-            applyEvent(event)
-          },
-          onClose: () => {
-            console.log('[Stream] Connection closed')
-          },
-          onError: (err) => {
-            console.error('[Stream] Error:', err)
-            setError(err.message)
-            setConnectionError(err.message)
-          },
-        })
-
-    return () => {
-      cleanup()
-    }
-  }, [effectiveRunId, query, email, isDemoMode, reset, applyEvent, setError])
+  }, [isMounted, effectiveRunId, effectiveQuery, effectiveEmail, isNewRun, storeReset, applyEventLocally])
 
   // Show loading state
   if (isInitializing) {
@@ -116,7 +299,7 @@ function LiveResearchContent() {
   }
 
   // Show error if no query
-  if (!query) {
+  if (!effectiveQuery) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-16">
         <Alert variant="destructive">
@@ -135,7 +318,7 @@ function LiveResearchContent() {
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-8">
       {/* Streaming progress indicator */}
-      {status === 'running' && (
+      {localStatus === 'running' && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -146,10 +329,10 @@ function LiveResearchContent() {
       )}
 
       {/* Page Header */}
-      <PageHeader query={query} email={email} />
+      <PageHeader query={effectiveQuery} email={effectiveEmail} />
 
       {/* Connection Error */}
-      {connectionError && status === 'error' && (
+      {connectionError && localStatus === 'error' && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -174,6 +357,25 @@ function LiveResearchContent() {
         </motion.div>
       )}
 
+      {/* Debug Info */}
+      <div className="fixed bottom-4 right-4 z-50 w-64 rounded-lg border bg-background p-4 shadow-lg opacity-50 hover:opacity-100 transition-opacity">
+        <h4 className="mb-2 font-bold text-xs uppercase text-muted-foreground">Debug Log</h4>
+        <div className="h-32 overflow-y-auto text-xs font-mono">
+          {debugInfo.length === 0 ? (
+            <div className="text-muted-foreground">No events received</div>
+          ) : (
+            debugInfo.map((info, i) => (
+              <div key={i} className="border-b py-1 last:border-0">{info}</div>
+            ))
+          )}
+        </div>
+        <div className="mt-2 text-xs text-muted-foreground">
+          Status: {localStatus}<br/>
+          Step: {localStep}<br/>
+          Progress: {localProgress[localStep]}%
+        </div>
+      </div>
+
       {/* 3-Column Grid Layout */}
       <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-[280px_1fr_340px]">
         {/* Left: Progress Panel */}
@@ -182,7 +384,7 @@ function LiveResearchContent() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <ProgressPanel progress={progress} step={step} status={status} />
+          <ProgressPanel progress={localProgress} step={localStep} status={localStatus} />
         </motion.div>
 
         {/* Center: Agent Console */}
@@ -192,9 +394,9 @@ function LiveResearchContent() {
           transition={{ duration: 0.4, delay: 0.1 }}
         >
           <AgentConsole
-            activeChannel={activeChannel}
-            logs={logs}
-            onChange={setActiveChannel}
+            activeChannel={localActiveChannel}
+            logs={localLogs}
+            onChange={setLocalActiveChannel}
           />
         </motion.div>
 
@@ -204,12 +406,12 @@ function LiveResearchContent() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
         >
-          <EvidencePanel evidence={evidence} />
+          <EvidencePanel evidence={localEvidence} />
         </motion.div>
       </div>
 
       {/* Success State - Show Report Button */}
-      {status === 'done' && reportMarkdown && (
+      {localStatus === 'done' && localReport && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -230,15 +432,6 @@ function LiveResearchContent() {
             </AlertDescription>
           </Alert>
         </motion.div>
-      )}
-
-      {/* Demo Mode Indicator */}
-      {isDemoMode && (
-        <div className="mt-6 text-center">
-          <p className="text-xs text-muted-foreground">
-            🎭 Demo Mode - Simulated streaming data
-          </p>
-        </div>
       )}
     </div>
   )

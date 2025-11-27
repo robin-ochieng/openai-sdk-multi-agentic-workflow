@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MobileSidebar } from './MobileSidebar'
+import { UserMenu } from './auth/UserMenu'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 
@@ -11,6 +12,8 @@ const routeTitles: Record<string, string> = {
   '/': 'Home',
   '/live': 'Live Research',
   '/report': 'Report',
+  '/history': 'Research History',
+  '/settings': 'Settings',
 }
 
 export function Topbar() {
@@ -50,6 +53,9 @@ export function Topbar() {
           )}
         </Button>
       )}
+
+      {/* User menu */}
+      {mounted && <UserMenu />}
     </header>
   )
 }
