@@ -1,25 +1,38 @@
 """
 Research Manager
-Orchestrates the 4-agent pipeline for deep research
+Orchestrates the 5-agent pipeline for deep research
+
+Pipeline:
+    1. QueryAnalyzerAgent → Classifies query and extracts research parameters
+    2. PlannerAgent → Creates strategic search plan based on analysis
+    3. SearchAgent → Performs web searches and summarizes results
+    4. WriterAgent → Synthesizes results into comprehensive report
+    5. EmailAgent → Converts to HTML and sends via Gmail SMTP
 """
 
 import os
 import json
 import asyncio
+import logging
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 from agents import Runner, trace, get_current_trace
 from deep_research.research_agents import (
+    create_query_analyzer_agent,
     create_planner_agent,
     create_search_agent,
     create_writer_agent,
-    create_email_agent
+    create_email_agent,
+    estimate_search_count,
 )
-from .models import WebSearchPlan, ResearchSummary, ReportData
+from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis
 from .report_formatter import format_research_report
 from dataclasses import dataclass
 from typing import Callable
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -31,29 +44,35 @@ class SearchResult:
 
 class ResearchManager:
     """
-    Manages the deep research workflow using 4 specialized agents
+    Manages the deep research workflow using 5 specialized agents.
     
     Pipeline:
-    1. Planner Agent → Creates search strategy (5 searches)
-    2. Search Agent → Performs searches and summarizes results
-    3. Writer Agent → Synthesizes results into comprehensive report
-    4. Email Agent → Converts to HTML and emails via Gmail SMTP
+        1. QueryAnalyzerAgent → Classifies query, extracts entities, recommends depth
+        2. PlannerAgent → Creates search strategy informed by analysis
+        3. SearchAgent → Performs searches and summarizes results
+        4. WriterAgent → Synthesizes results into comprehensive report
+        5. EmailAgent → Converts to HTML and emails via Gmail SMTP
+    
+    Attributes:
+        query_analysis: Cached analysis from the most recent query.
+        collected_sources: Sources gathered during the search phase.
     """
     
     def __init__(self, api_key: str = None, model: str = "gpt-4o"):
         """
-        Initialize the Research Manager
+        Initialize the Research Manager.
         
         Args:
-            api_key: OpenAI API key (if None, reads from environment)
-            model: Model to use for all agents (default: gpt-4o)
+            api_key: OpenAI API key (if None, reads from environment).
+            model: Model to use for all agents (default: gpt-4o).
         """
         load_dotenv()
         
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.model = model
         
-        # Initialize all agents
+        # Initialize all agents (including new QueryAnalyzerAgent)
+        self.query_analyzer_agent = create_query_analyzer_agent(self.api_key, self.model)
         self.planner_agent = create_planner_agent(self.api_key, self.model)
         self.search_agent = create_search_agent(self.api_key, self.model)
         self.writer_agent = create_writer_agent(self.api_key, self.model)
@@ -63,32 +82,103 @@ class ResearchManager:
         self.current_status = "Idle"
         self.trace_url = None
         
+        # Query analysis cache
+        self.query_analysis: Optional[QueryAnalysis] = None
+        
         # Callback for streaming evidence to frontend
         self._on_evidence: Optional[Callable[[Dict[str, str]], None]] = None
         
         # Collected sources for the report
         self.collected_sources: List[Dict[str, str]] = []
+        
+        logger.info(f"ResearchManager initialized with model={model}")
     
-    async def plan_searches(self, query: str) -> WebSearchPlan:
+    async def analyze_query(self, query: str) -> QueryAnalysis:
         """
-        Step 1: Use the planner_agent to plan which searches to run
+        Step 0: Analyze the research query to extract classification metadata.
+        
+        This step runs before planning to provide context that improves
+        search strategy and report structure.
         
         Args:
-            query: Research query from user
+            query: The user's research question.
             
         Returns:
-            WebSearchPlan with 5 targeted searches
+            QueryAnalysis with classification, entities, and recommendations.
+        """
+        self.current_status = "Analyzing query..."
+        print(f"\n{'='*60}")
+        print("🧠 STEP 0: Analyzing Research Query")
+        print(f"{'='*60}")
+        print(f"Query: {query}")
+        print("\nClassifying query type, extracting entities...")
+        
+        result = await Runner.run(
+            self.query_analyzer_agent,
+            f"Query: {query}"
+        )
+        
+        analysis: QueryAnalysis = result.final_output
+        self.query_analysis = analysis
+        
+        # Refine search count based on analysis
+        refined_count = estimate_search_count(analysis)
+        
+        print(f"✅ Query Analysis Complete:")
+        print(f"   Type: {analysis.query_type}")
+        print(f"   Complexity: {analysis.complexity}")
+        print(f"   Audience: {analysis.audience_level}")
+        print(f"   Depth: {analysis.required_depth}")
+        print(f"   Primary Entities: {', '.join(analysis.primary_entities[:5]) or 'None'}")
+        print(f"   Recommended Searches: {refined_count}")
+        print(f"   Estimated Time: {analysis.estimated_research_time} minutes")
+        
+        logger.info(
+            f"Query analyzed: type={analysis.query_type}, "
+            f"complexity={analysis.complexity}, "
+            f"searches={refined_count}"
+        )
+        
+        return analysis
+    
+    async def plan_searches(
+        self, 
+        query: str, 
+        analysis: Optional[QueryAnalysis] = None
+    ) -> WebSearchPlan:
+        """
+        Step 1: Use the planner_agent to plan which searches to run.
+        
+        If a QueryAnalysis is provided, it enriches the planner's context
+        with entity information, recommended depth, and focus areas.
+        
+        Args:
+            query: Research query from user.
+            analysis: Optional QueryAnalysis from analyze_query().
+            
+        Returns:
+            WebSearchPlan with targeted searches.
         """
         self.current_status = "Planning searches..."
         print(f"\n{'='*60}")
         print("🔍 STEP 1: Planning Research Strategy")
         print(f"{'='*60}")
         print(f"Query: {query}")
-        print("\nPlanning searches...")
+        
+        # Build enriched prompt if analysis is available
+        if analysis:
+            search_count = estimate_search_count(analysis)
+            enriched_prompt = self._build_enriched_planner_prompt(query, analysis, search_count)
+            print(f"\nUsing query analysis to optimize search plan...")
+            print(f"   Target searches: {search_count}")
+            print(f"   Focus entities: {', '.join(analysis.primary_entities[:3]) or 'General'}")
+        else:
+            enriched_prompt = f"Query: {query}"
+            print("\nPlanning searches (no prior analysis)...")
         
         result = await Runner.run(
             self.planner_agent,
-            f"Query: {query}"
+            enriched_prompt
         )
         
         print(f"✅ Will perform {len(result.final_output.searches)} searches")
@@ -97,6 +187,60 @@ class ResearchManager:
             print(f"      Reason: {search.reason}")
         
         return result.final_output
+    
+    def _build_enriched_planner_prompt(
+        self, 
+        query: str, 
+        analysis: QueryAnalysis,
+        search_count: int
+    ) -> str:
+        """
+        Build an enriched prompt for the planner using query analysis.
+        
+        Args:
+            query: Original query.
+            analysis: Query analysis results.
+            search_count: Target number of searches.
+            
+        Returns:
+            Enriched prompt string.
+        """
+        prompt_parts = [
+            f"Query: {query}",
+            "",
+            "=== Query Analysis Context ===",
+            f"Query Type: {analysis.query_type}",
+            f"Complexity: {analysis.complexity}",
+            f"Time Sensitivity: {analysis.time_sensitivity}",
+            f"Audience: {analysis.audience_level}",
+            f"Required Depth: {analysis.required_depth}",
+            "",
+        ]
+        
+        if analysis.primary_entities:
+            prompt_parts.append(f"Primary Entities to Research: {', '.join(analysis.primary_entities)}")
+        
+        if analysis.secondary_entities:
+            prompt_parts.append(f"Secondary/Related Topics: {', '.join(analysis.secondary_entities)}")
+        
+        if analysis.geographic_scope != "global":
+            prompt_parts.append(f"Geographic Focus: {analysis.geographic_scope}")
+        
+        if analysis.time_range:
+            prompt_parts.append(f"Time Range: {analysis.time_range}")
+        
+        if analysis.required_data_points:
+            prompt_parts.append(f"Required Data Points: {', '.join(analysis.required_data_points)}")
+        
+        prompt_parts.extend([
+            "",
+            f"=== Planning Instructions ===",
+            f"Generate exactly {search_count} search queries optimized for this research.",
+            "Ensure searches cover all primary entities and required data points.",
+            f"Tailor searches for a {analysis.audience_level} audience.",
+        ])
+        
+        return "\n".join(prompt_parts)
     
     async def perform_searches(self, search_plan: WebSearchPlan) -> List[str]:
         """
@@ -300,16 +444,24 @@ class ResearchManager:
         
         return result.final_output
     
-    async def write_report(self, query: str, search_results: List[str]):
+    async def write_report(
+        self, 
+        query: str, 
+        search_results: List[str],
+        analysis: Optional[QueryAnalysis] = None
+    ):
         """
-        Step 3: Use the writer agent to write a report based on the search results
+        Step 3: Use the writer agent to write a report based on the search results.
+        
+        If QueryAnalysis is provided, it guides report structure, depth, and tone.
         
         Args:
-            query: Original research query
-            search_results: List of summarized search results
+            query: Original research query.
+            search_results: List of summarized search results.
+            analysis: Optional QueryAnalysis for structure guidance.
             
         Returns:
-            ReportData with full markdown report
+            ReportData with full markdown report.
         """
         self.current_status = "Writing comprehensive report..."
         print(f"\n{'='*60}")
@@ -317,10 +469,17 @@ class ResearchManager:
         print(f"{'='*60}")
         print("Thinking about report structure...")
         
-        input_data = (
-            f"Original query: {query}\n\n"
-            f"Summarized search results: {search_results}"
-        )
+        # Build enriched input if analysis is available
+        if analysis:
+            input_data = self._build_enriched_writer_prompt(query, search_results, analysis)
+            print(f"   Using analysis to guide report structure...")
+            print(f"   Target depth: {analysis.required_depth}")
+            print(f"   Audience: {analysis.audience_level}")
+        else:
+            input_data = (
+                f"Original query: {query}\n\n"
+                f"Summarized search results: {search_results}"
+            )
         
         result = await Runner.run(self.writer_agent, input_data)
 
@@ -344,6 +503,64 @@ class ResearchManager:
         print(f"📝 Summary: {formatted_report.short_summary}")
 
         return formatted_report
+    
+    def _build_enriched_writer_prompt(
+        self,
+        query: str,
+        search_results: List[str],
+        analysis: QueryAnalysis
+    ) -> str:
+        """
+        Build an enriched prompt for the writer using query analysis.
+        
+        Args:
+            query: Original query.
+            search_results: Search result summaries.
+            analysis: Query analysis results.
+            
+        Returns:
+            Enriched prompt string.
+        """
+        # Determine target word count based on depth
+        depth_ranges = {
+            "overview": (500, 1000),
+            "detailed": (1500, 2500),
+            "comprehensive": (3000, 5000),
+            "exhaustive": (5000, 10000),
+        }
+        min_words, max_words = depth_ranges.get(analysis.required_depth, (1500, 2500))
+        
+        prompt_parts = [
+            f"Original query: {query}",
+            "",
+            "=== Report Requirements (from Query Analysis) ===",
+            f"Query Type: {analysis.query_type}",
+            f"Target Audience: {analysis.audience_level}",
+            f"Required Depth: {analysis.required_depth}",
+            f"Target Word Count: {min_words}-{max_words} words",
+            "",
+        ]
+        
+        if analysis.recommended_sections:
+            prompt_parts.append("Recommended Sections:")
+            for section in analysis.recommended_sections:
+                prompt_parts.append(f"  - {section}")
+            prompt_parts.append("")
+        
+        if analysis.required_data_points:
+            prompt_parts.append(f"Key Data Points to Include: {', '.join(analysis.required_data_points)}")
+        
+        if analysis.visualization_opportunities:
+            prompt_parts.append(f"Visualization Opportunities: {', '.join(analysis.visualization_opportunities)}")
+            prompt_parts.append("(Include markdown tables where data permits)")
+        
+        prompt_parts.extend([
+            "",
+            "=== Search Results ===",
+            str(search_results),
+        ])
+        
+        return "\n".join(prompt_parts)
     
     async def send_email(
         self,
@@ -461,15 +678,16 @@ Convert the following report to professional HTML and send it immediately:
 
         return email_status
     
-    async def run(self, query: str) -> str:
+    async def run(self, query: str, skip_analysis: bool = False) -> str:
         """
-        Run the complete deep research process
+        Run the complete deep research process.
         
         Args:
-            query: Research query from user
+            query: Research query from user.
+            skip_analysis: If True, skip query analysis step (backward compatible).
             
         Returns:
-            Markdown report content
+            Markdown report content.
         """
         # Create trace for monitoring with OpenAI Agents SDK
         current_trace = get_current_trace()
@@ -483,14 +701,19 @@ Convert the following report to professional HTML and send it immediately:
             print(f"📊 OpenAI Trace: {self.trace_url}")
             print(f"📊 View traces at: https://platform.openai.com/traces")
             
-            # Step 1: Plan searches
-            search_plan = await self.plan_searches(query)
+            # Step 0: Analyze query (new step)
+            analysis = None
+            if not skip_analysis:
+                analysis = await self.analyze_query(query)
+            
+            # Step 1: Plan searches (now with optional analysis context)
+            search_plan = await self.plan_searches(query, analysis)
             
             # Step 2: Perform searches
             search_results = await self.perform_searches(search_plan)
             
-            # Step 3: Write report
-            report = await self.write_report(query, search_results)
+            # Step 3: Write report (pass analysis for structure guidance)
+            report = await self.write_report(query, search_results, analysis)
             
             # Step 4: Send email
             await self.send_email(query=query, report_data=report, recipient_email=None)
@@ -503,6 +726,8 @@ Convert the following report to professional HTML and send it immediately:
             print(f"📧 Report sent to: {os.getenv('RECIPIENT_EMAIL')}")
             print(f"📊 OpenAI Trace: {self.trace_url}")
             print(f"📊 View all traces: https://platform.openai.com/traces")
+            if analysis:
+                print(f"📋 Query Type: {analysis.query_type} | Complexity: {analysis.complexity}")
             print(f"{'='*80}\n")
             
             return report.markdown_report
