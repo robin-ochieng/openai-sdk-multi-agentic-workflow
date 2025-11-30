@@ -8,7 +8,8 @@ from .research_models import (
     WebSearchPlan,
     ResearchSummary,
     ReportData,
-    EmailResponse
+    EmailResponse,
+    SourceMetrics,
 )
 
 from .query_analysis import (
@@ -41,6 +42,7 @@ __all__ = [
     'ResearchSummary',
     'ReportData',
     'EmailResponse',
+    'SourceMetrics',
     # Query Analysis Models
     'QueryAnalysis',
     'QueryAnalysisRequest',

@@ -14,7 +14,7 @@ import os
 import json
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
 from agents import Runner, trace, get_current_trace
@@ -28,15 +28,16 @@ from deep_research.research_agents import (
     get_source_validator,
     validate_search_results,
 )
-from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis
+from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis, SourceMetrics
 from .models.source_validation import (
     SourceMetadata,
     SourceCredibility,
     ValidationResult,
     ValidationStatistics,
     InclusionDecision,
+    DomainCategory,
 )
-from .report_formatter import format_research_report
+from .report_formatter import format_research_report, add_methodology_section
 from dataclasses import dataclass
 from typing import Callable
 
@@ -552,6 +553,7 @@ class ResearchManager:
         Step 3: Use the writer agent to write a report based on the search results.
         
         If QueryAnalysis is provided, it guides report structure, depth, and tone.
+        Also incorporates source validation metrics for transparency.
         
         Args:
             query: Original research query.
@@ -559,7 +561,7 @@ class ResearchManager:
             analysis: Optional QueryAnalysis for structure guidance.
             
         Returns:
-            ReportData with full markdown report.
+            ReportData with full markdown report and metadata.
         """
         self.current_status = "Writing comprehensive report..."
         print(f"\n{'='*60}")
@@ -582,16 +584,40 @@ class ResearchManager:
         result = await Runner.run(self.writer_agent, input_data)
 
         original_report: ReportData = result.final_output
+        
+        # Build source metrics from validation statistics
+        source_metrics = self._build_source_metrics()
+        
+        # Build query analysis summary
+        query_analysis_summary = self._build_query_analysis_summary(analysis) if analysis else None
+        
+        # Build planning notes
+        planning_notes = self._build_planning_notes(analysis)
+        
+        # Format report and add methodology section
         formatted_markdown = format_research_report(
             original_report.markdown_report,
             original_report.short_summary,
             query=query,
         )
+        
+        # Add methodology & source quality section
+        formatted_markdown = add_methodology_section(
+            formatted_markdown,
+            source_metrics=source_metrics,
+            query_analysis_summary=query_analysis_summary,
+            sources_with_credibility=self.collected_sources
+        )
 
+        # Create enhanced ReportData with all metadata
         formatted_report = ReportData(
             short_summary=original_report.short_summary.strip(),
             markdown_report=formatted_markdown,
             follow_up_questions=original_report.follow_up_questions,
+            query_analysis_summary=query_analysis_summary,
+            source_metrics=source_metrics,
+            planning_notes=planning_notes,
+            sources_with_credibility=self.collected_sources,
         )
 
         report_length = len(formatted_report.markdown_report)
@@ -599,8 +625,90 @@ class ResearchManager:
 
         print(f"✅ Report written: {word_count} words, {report_length} characters")
         print(f"📝 Summary: {formatted_report.short_summary}")
+        if source_metrics:
+            print(f"📊 Source Quality: {source_metrics.average_score:.1f}/100 avg ({source_metrics.quality_tier})")
 
         return formatted_report
+    
+    def _build_source_metrics(self) -> Optional[SourceMetrics]:
+        """
+        Build SourceMetrics from validation statistics.
+        
+        Returns:
+            SourceMetrics object or None if no validation was performed.
+        """
+        if not self.validation_stats:
+            return None
+        
+        stats = self.validation_stats
+        
+        # Build category distribution from collected sources
+        category_distribution: Dict[str, int] = {}
+        for source in self.collected_sources:
+            level = source.get("credibility_level", "unknown")
+            category_distribution[level] = category_distribution.get(level, 0) + 1
+        
+        return SourceMetrics(
+            total_sources=stats.total_sources,
+            included_count=stats.included,
+            caveat_count=stats.included_with_caveat,
+            excluded_count=stats.excluded,
+            average_score=stats.average_score,
+            high_credibility_count=stats.high_credibility_count,
+            category_distribution=category_distribution,
+        )
+    
+    def _build_query_analysis_summary(self, analysis: QueryAnalysis) -> Dict[str, Any]:
+        """
+        Build a serializable summary of query analysis.
+        
+        Args:
+            analysis: QueryAnalysis object.
+            
+        Returns:
+            Dictionary with key analysis attributes.
+        """
+        return {
+            "query_type": analysis.query_type,
+            "complexity": analysis.complexity,
+            "audience_level": analysis.audience_level,
+            "required_depth": analysis.required_depth,
+            "time_sensitivity": analysis.time_sensitivity,
+            "primary_entities": analysis.primary_entities[:5] if analysis.primary_entities else [],
+            "recommended_search_count": analysis.recommended_search_count,
+            "estimated_research_time": analysis.estimated_research_time,
+        }
+    
+    def _build_planning_notes(self, analysis: Optional[QueryAnalysis]) -> str:
+        """
+        Build planning notes describing the research methodology.
+        
+        Args:
+            analysis: Optional QueryAnalysis.
+            
+        Returns:
+            Planning notes string.
+        """
+        notes_parts = []
+        
+        if analysis:
+            notes_parts.append(f"Query classified as '{analysis.query_type}' with {analysis.complexity} complexity.")
+            notes_parts.append(f"Targeted {analysis.audience_level} audience with {analysis.required_depth} depth.")
+            if analysis.primary_entities:
+                notes_parts.append(f"Primary research focus: {', '.join(analysis.primary_entities[:3])}.")
+        
+        if self.validation_stats:
+            stats = self.validation_stats
+            notes_parts.append(
+                f"Source validation: {stats.included + stats.included_with_caveat} sources retained "
+                f"({stats.excluded} excluded for low credibility)."
+            )
+            notes_parts.append(f"Average source credibility score: {stats.average_score:.1f}/100.")
+        
+        if not notes_parts:
+            return "Standard research methodology applied."
+        
+        return " ".join(notes_parts)
     
     def _build_enriched_writer_prompt(
         self,
@@ -651,6 +759,35 @@ class ResearchManager:
         if analysis.visualization_opportunities:
             prompt_parts.append(f"Visualization Opportunities: {', '.join(analysis.visualization_opportunities)}")
             prompt_parts.append("(Include markdown tables where data permits)")
+        
+        # Add source validation context if available
+        if self.validation_stats:
+            stats = self.validation_stats
+            prompt_parts.extend([
+                "",
+                "=== Source Quality Context ===",
+                f"Total sources validated: {stats.total_sources}",
+                f"Sources included: {stats.included} high-quality, {stats.included_with_caveat} with caveats",
+                f"Sources excluded: {stats.excluded} (low credibility)",
+                f"Average credibility score: {stats.average_score:.1f}/100",
+                "",
+                "CITATION GUIDANCE:",
+                "- Prefer citing high-credibility sources (⭐) for key claims",
+                "- Note caveats when citing medium-credibility sources (⚠️)",
+                "- Corroborate claims from lower-credibility sources with authoritative references",
+            ])
+        
+        # Add validated sources with credibility badges
+        if self.collected_sources:
+            prompt_parts.extend([
+                "",
+                "=== Validated Sources with Credibility Scores ===",
+            ])
+            for i, source in enumerate(self.collected_sources[:15], 1):  # Limit to top 15
+                badge = source.get("credibility_badge", "")
+                url = source.get("url", "")
+                title = source.get("title", "Source")
+                prompt_parts.append(f"{i}. {badge} [{title}]({url})")
         
         prompt_parts.extend([
             "",

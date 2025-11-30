@@ -4,7 +4,65 @@ All agent responses use these models for type safety and validation
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+
+
+class SourceMetrics(BaseModel):
+    """
+    Aggregated metrics from source validation.
+    
+    Provides summary statistics about the quality and distribution
+    of sources used in the research report.
+    """
+    total_sources: int = Field(
+        default=0,
+        description="Total number of sources collected"
+    )
+    included_count: int = Field(
+        default=0,
+        description="Number of sources included without caveats"
+    )
+    caveat_count: int = Field(
+        default=0,
+        description="Number of sources included with caveats"
+    )
+    excluded_count: int = Field(
+        default=0,
+        description="Number of sources excluded for low credibility"
+    )
+    average_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Average credibility score across all sources (0-100)"
+    )
+    high_credibility_count: int = Field(
+        default=0,
+        description="Number of high-credibility sources (score >= 70)"
+    )
+    category_distribution: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Distribution of sources by domain category"
+    )
+    
+    @property
+    def inclusion_rate(self) -> float:
+        """Percentage of sources included (with or without caveats)."""
+        if self.total_sources == 0:
+            return 0.0
+        return (self.included_count + self.caveat_count) / self.total_sources * 100
+    
+    @property
+    def quality_tier(self) -> str:
+        """Overall quality tier based on average score."""
+        if self.average_score >= 70:
+            return "high"
+        elif self.average_score >= 50:
+            return "medium"
+        elif self.average_score >= 30:
+            return "low"
+        else:
+            return "poor"
 
 
 class WebSearchItem(BaseModel):
@@ -61,12 +119,19 @@ class ResearchSummary(BaseModel):
 
 class ReportData(BaseModel):
     """
-    Final comprehensive research report
+    Final comprehensive research report with metadata.
+    
+    Extended to capture query analysis context, source quality metrics,
+    and planning notes for transparency and reproducibility.
     
     Attributes:
         short_summary: Brief 2-3 sentence overview of findings
         markdown_report: Full report in markdown format (5-10 pages, 1000+ words)
         follow_up_questions: Suggested topics for further research
+        query_analysis_summary: Optional summary of query classification
+        source_metrics: Aggregated source quality metrics
+        planning_notes: Notes about research strategy and methodology
+        sources_with_credibility: Sources tagged with credibility badges
     """
     short_summary: str = Field(
         description="A short 2-3 sentence summary of the findings."
@@ -81,6 +146,27 @@ class ReportData(BaseModel):
     follow_up_questions: List[str] = Field(
         description="Suggested topics to research further based on the findings",
         default_factory=list
+    )
+    
+    # New fields for enhanced metadata
+    query_analysis_summary: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Summary of query analysis including type, complexity, and entities"
+    )
+    
+    source_metrics: Optional[SourceMetrics] = Field(
+        default=None,
+        description="Aggregated metrics about source quality and distribution"
+    )
+    
+    planning_notes: Optional[str] = Field(
+        default=None,
+        description="Notes about research methodology and strategy"
+    )
+    
+    sources_with_credibility: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="List of sources with credibility scores and badges"
     )
 
 
