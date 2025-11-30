@@ -35,6 +35,16 @@ from .source_validation import (
     ExclusionReason,
 )
 
+from .academic_models import (
+    AcademicSource,
+    AcademicSearchFilters,
+    AcademicSearchQuery,
+    AcademicSearchResult,
+    Author,
+    FieldOfStudy,
+    PublicationVenue,
+)
+
 __all__ = [
     # Research Models
     'WebSearchItem',
@@ -62,4 +72,12 @@ __all__ = [
     'InclusionDecision',
     'DomainCategory',
     'ExclusionReason',
+    # Academic Models
+    'AcademicSource',
+    'AcademicSearchFilters',
+    'AcademicSearchQuery',
+    'AcademicSearchResult',
+    'Author',
+    'FieldOfStudy',
+    'PublicationVenue',
 ]

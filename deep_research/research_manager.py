@@ -28,6 +28,12 @@ from deep_research.research_agents import (
     get_source_validator,
     validate_search_results,
 )
+from deep_research.research_agents.academic_agent import (
+    AcademicResearchAgent,
+    create_academic_research_agent,
+    should_use_academic_search,
+    get_academic_filters_from_query_analysis,
+)
 from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis, SourceMetrics
 from .models.source_validation import (
     SourceMetadata,
@@ -37,6 +43,7 @@ from .models.source_validation import (
     InclusionDecision,
     DomainCategory,
 )
+from .models.academic_models import AcademicSearchResult, AcademicSearchFilters
 from .report_formatter import format_research_report, add_methodology_section
 from dataclasses import dataclass
 from typing import Callable
@@ -88,12 +95,18 @@ class ResearchManager:
         self.writer_agent = create_writer_agent(self.api_key, self.model)
         self.email_agent = create_email_agent(self.api_key, self.model)
         
+        # Academic research agent (lazy initialization)
+        self._academic_agent: Optional[AcademicResearchAgent] = None
+        
         # Track progress
         self.current_status = "Idle"
         self.trace_url = None
         
         # Query analysis cache
         self.query_analysis: Optional[QueryAnalysis] = None
+        
+        # Academic search results cache
+        self.academic_results: Optional[AcademicSearchResult] = None
         
         # Callback for streaming evidence to frontend
         self._on_evidence: Optional[Callable[[Dict[str, str]], None]] = None
@@ -108,6 +121,13 @@ class ResearchManager:
         self._source_validator = get_source_validator()
         
         logger.info(f"ResearchManager initialized with model={model}")
+    
+    @property
+    def academic_agent(self) -> AcademicResearchAgent:
+        """Lazy-load academic research agent."""
+        if self._academic_agent is None:
+            self._academic_agent = create_academic_research_agent(model=self.model)
+        return self._academic_agent
     
     async def analyze_query(self, query: str) -> QueryAnalysis:
         """
@@ -265,6 +285,9 @@ class ResearchManager:
         After searching, validates sources for credibility and filters out
         unreliable sources. Surviving sources are tagged with credibility badges.
         
+        For technical/academic queries, also performs academic search using
+        Semantic Scholar API to fetch peer-reviewed papers.
+        
         Args:
             search_plan: Plan from planner agent
             
@@ -278,16 +301,37 @@ class ResearchManager:
         
         # Reset collected sources for new search
         self.collected_sources = []
+        self.academic_results = None
         self.validation_stats = None
         
+        # Get original query from search plan
+        original_query = ""
+        if search_plan.searches:
+            original_query = search_plan.searches[0].query
+        
+        # Determine if we should also perform academic search
+        use_academic = False
+        if self.query_analysis:
+            use_academic = should_use_academic_search(
+                self.query_analysis.query_type,
+                original_query
+            )
+        
+        # Perform web searches
         tasks = [
             asyncio.create_task(self.search(item))
             for item in search_plan.searches
         ]
         results = await asyncio.gather(*tasks)
         
-        print(f"✅ Finished searching - collected {len(results)} summaries")
+        print(f"✅ Finished web searching - collected {len(results)} summaries")
         print(f"📚 Raw sources collected: {len(self.collected_sources)}")
+        
+        # Perform academic search if appropriate
+        if use_academic:
+            academic_summaries = await self._perform_academic_search(original_query)
+            results.extend(academic_summaries)
+            print(f"📚 Total sources after academic search: {len(self.collected_sources)}")
         
         # Validate and filter sources
         if self.collected_sources:
@@ -305,6 +349,58 @@ class ResearchManager:
             print(f"📚 Final validated sources: {len(self.collected_sources)}")
         
         return results
+    
+    async def _perform_academic_search(self, query: str) -> List[str]:
+        """
+        Perform academic search using Semantic Scholar API.
+        
+        Called when QueryAnalysis indicates the query would benefit
+        from peer-reviewed academic sources.
+        
+        Args:
+            query: The research query.
+            
+        Returns:
+            List of academic search summaries.
+        """
+        print(f"\n📚 Performing Academic Search...")
+        
+        # Get filters based on query analysis
+        filters = AcademicSearchFilters()
+        if self.query_analysis:
+            filters = get_academic_filters_from_query_analysis({
+                "time_sensitivity": self.query_analysis.time_sensitivity,
+                "required_depth": self.query_analysis.required_depth,
+            })
+        
+        try:
+            # Search for academic papers
+            result = await self.academic_agent.search(
+                query=query,
+                filters=filters,
+                limit=10,
+            )
+            
+            self.academic_results = result
+            
+            print(f"   Found {len(result.papers)} academic papers")
+            if result.papers:
+                print(f"   Avg citations: {result.avg_citation_count:.1f}")
+                print(f"   Source: {result.source_api}")
+            
+            # Convert academic sources to standard source format and add to collected
+            for paper in result.papers:
+                source_dict = paper.to_source_dict()
+                source_dict["source_type"] = "academic"
+                self.collected_sources.append(source_dict)
+            
+            # Return summaries for the writer agent
+            return result.to_search_summaries()
+            
+        except Exception as e:
+            logger.error(f"Academic search failed: {e}")
+            print(f"   ⚠️ Academic search failed: {e}")
+            return []
     
     def _validate_collected_sources(self) -> tuple[List[Dict[str, str]], ValidationStatistics]:
         """
