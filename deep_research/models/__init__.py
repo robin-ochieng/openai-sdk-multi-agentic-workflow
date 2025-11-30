@@ -22,6 +22,18 @@ from .query_analysis import (
     QUERY_TYPE_DESCRIPTIONS,
 )
 
+from .source_validation import (
+    SourceMetadata,
+    SourceCredibility,
+    CredibilityScores,
+    ValidationResult,
+    ValidationStatistics,
+    CredibilityLevel,
+    InclusionDecision,
+    DomainCategory,
+    ExclusionReason,
+)
+
 __all__ = [
     # Research Models
     'WebSearchItem',
@@ -38,4 +50,14 @@ __all__ = [
     'AudienceLevel',
     'ResearchDepth',
     'QUERY_TYPE_DESCRIPTIONS',
+    # Source Validation Models
+    'SourceMetadata',
+    'SourceCredibility',
+    'CredibilityScores',
+    'ValidationResult',
+    'ValidationStatistics',
+    'CredibilityLevel',
+    'InclusionDecision',
+    'DomainCategory',
+    'ExclusionReason',
 ]

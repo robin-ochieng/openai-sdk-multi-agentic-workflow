@@ -25,8 +25,17 @@ from deep_research.research_agents import (
     create_writer_agent,
     create_email_agent,
     estimate_search_count,
+    get_source_validator,
+    validate_search_results,
 )
 from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis
+from .models.source_validation import (
+    SourceMetadata,
+    SourceCredibility,
+    ValidationResult,
+    ValidationStatistics,
+    InclusionDecision,
+)
 from .report_formatter import format_research_report
 from dataclasses import dataclass
 from typing import Callable
@@ -90,6 +99,12 @@ class ResearchManager:
         
         # Collected sources for the report
         self.collected_sources: List[Dict[str, str]] = []
+        
+        # Source validation statistics from most recent search
+        self.validation_stats: Optional[ValidationStatistics] = None
+        
+        # Source validator instance
+        self._source_validator = get_source_validator()
         
         logger.info(f"ResearchManager initialized with model={model}")
     
@@ -244,7 +259,10 @@ class ResearchManager:
     
     async def perform_searches(self, search_plan: WebSearchPlan) -> List[str]:
         """
-        Step 2: Call search() for each item in the search plan
+        Step 2: Call search() for each item in the search plan.
+        
+        After searching, validates sources for credibility and filters out
+        unreliable sources. Surviving sources are tagged with credibility badges.
         
         Args:
             search_plan: Plan from planner agent
@@ -259,6 +277,7 @@ class ResearchManager:
         
         # Reset collected sources for new search
         self.collected_sources = []
+        self.validation_stats = None
         
         tasks = [
             asyncio.create_task(self.search(item))
@@ -267,8 +286,87 @@ class ResearchManager:
         results = await asyncio.gather(*tasks)
         
         print(f"✅ Finished searching - collected {len(results)} summaries")
-        print(f"📚 Total sources collected: {len(self.collected_sources)}")
+        print(f"📚 Raw sources collected: {len(self.collected_sources)}")
+        
+        # Validate and filter sources
+        if self.collected_sources:
+            validated_sources, stats = self._validate_collected_sources()
+            self.validation_stats = stats
+            
+            print(f"\n🔍 Source Validation Results:")
+            print(f"   ✅ Included: {stats.included} sources")
+            print(f"   ⚠️  With caveats: {stats.included_with_caveat} sources")
+            print(f"   ❌ Excluded: {stats.excluded} sources")
+            print(f"   📊 Average credibility: {stats.average_score:.1f}/100")
+            
+            # Replace collected_sources with validated ones
+            self.collected_sources = validated_sources
+            print(f"📚 Final validated sources: {len(self.collected_sources)}")
+        
         return results
+    
+    def _validate_collected_sources(self) -> tuple[List[Dict[str, str]], ValidationStatistics]:
+        """
+        Validate collected sources and filter by credibility.
+        
+        Returns:
+            Tuple of (validated_sources_list, validation_statistics)
+        """
+        # Build query context from cached analysis if available
+        query_context = ""
+        if self.query_analysis:
+            query_context = f"{self.query_analysis.query_type}: {', '.join(self.query_analysis.primary_entities)}"
+        
+        # Convert raw sources to SourceMetadata
+        source_metadata_list = []
+        for source in self.collected_sources:
+            source_metadata_list.append(SourceMetadata(
+                url=source.get("url", ""),
+                title=source.get("title", ""),
+                snippet=source.get("snippet", ""),
+                publication_date=source.get("publication_date"),
+            ))
+        
+        # Validate all sources
+        validation_result = self._source_validator.validate_sources(
+            source_metadata_list, 
+            query_context
+        )
+        
+        # Log excluded sources with reasons
+        for excluded in validation_result.excluded_sources:
+            reasons = [r.reason_text for r in excluded.exclusion_reasons]
+            logger.warning(
+                f"Source excluded: {excluded.source.url}",
+                extra={
+                    "domain": excluded.domain,
+                    "score": excluded.overall_score,
+                    "reasons": reasons
+                }
+            )
+            print(f"   ❌ Excluded: {excluded.domain} (score: {excluded.overall_score})")
+            for reason in reasons:
+                print(f"      └─ {reason}")
+        
+        # Convert validated sources back to dict format with credibility badges
+        validated_sources = []
+        for credibility in validation_result.get_usable_sources():
+            source_dict = {
+                "url": credibility.source.url,
+                "title": credibility.source.title,
+                "snippet": credibility.source.snippet,
+                "credibility_score": credibility.overall_score,
+                "credibility_badge": credibility.score_badge,
+                "credibility_level": credibility.credibility_level.value,
+            }
+            
+            # Add caveats if any
+            if credibility.decision == InclusionDecision.INCLUDE_WITH_CAVEAT:
+                source_dict["caveats"] = [r.reason_text for r in credibility.exclusion_reasons]
+            
+            validated_sources.append(source_dict)
+        
+        return validated_sources, validation_result.statistics
     
     def _extract_sources_from_result(self, result) -> List[Dict[str, str]]:
         """

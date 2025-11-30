@@ -1,12 +1,13 @@
 """
 Research Agents for Deep Research System
 
-Five specialized agents working together in a pipeline:
+Six specialized agents working together in a pipeline:
 1. QueryAnalyzerAgent - Classifies and understands research queries
-2. PlannerAgent - Creates strategic search plans
-3. SearchAgent - Performs web searches and summarizes results
-4. WriterAgent - Synthesizes results into comprehensive reports
-5. EmailAgent - Converts to HTML and sends via Gmail SMTP
+2. SourceValidatorAgent - Validates and scores source credibility
+3. PlannerAgent - Creates strategic search plans
+4. SearchAgent - Performs web searches and summarizes results
+5. WriterAgent - Synthesizes results into comprehensive reports
+6. EmailAgent - Converts to HTML and sends via Gmail SMTP
 """
 
 from .query_analyzer_agent import (
@@ -14,6 +15,15 @@ from .query_analyzer_agent import (
     EnhancedQueryAnalyzer,
     estimate_search_count,
     get_recommended_report_length,
+)
+from .source_validator_agent import (
+    create_source_validator_agent,
+    SourceValidator,
+    EnhancedSourceValidator,
+    DomainClassifier,
+    validate_search_results,
+    get_domain_classifier,
+    get_source_validator,
 )
 from .planner_agent import create_planner_agent
 from .search_agent import create_search_agent
@@ -26,6 +36,14 @@ __all__ = [
     'EnhancedQueryAnalyzer',
     'estimate_search_count',
     'get_recommended_report_length',
+    # Source Validation
+    'create_source_validator_agent',
+    'SourceValidator',
+    'EnhancedSourceValidator',
+    'DomainClassifier',
+    'validate_search_results',
+    'get_domain_classifier',
+    'get_source_validator',
     # Core Pipeline
     'create_planner_agent',
     'create_search_agent',

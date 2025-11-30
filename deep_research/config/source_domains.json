@@ -1,0 +1,204 @@
+{
+  "_description": "Domain classification for source validation. Update these lists to adjust source credibility scoring.",
+  "_version": "1.0.0",
+  "_updated": "2025-11-30",
+  
+  "trusted_domains": {
+    "_description": "Highly authoritative sources that receive automatic credibility boost (+20 points)",
+    "government": [
+      "gov",
+      "gov.uk",
+      "gov.au",
+      "europa.eu",
+      "who.int",
+      "un.org",
+      "nasa.gov",
+      "nih.gov",
+      "cdc.gov",
+      "sec.gov",
+      "fda.gov",
+      "epa.gov"
+    ],
+    "academic": [
+      "edu",
+      "ac.uk",
+      "edu.au",
+      "arxiv.org",
+      "pubmed.ncbi.nlm.nih.gov",
+      "scholar.google.com",
+      "jstor.org",
+      "nature.com",
+      "science.org",
+      "sciencedirect.com",
+      "springer.com",
+      "wiley.com",
+      "ieee.org",
+      "acm.org",
+      "researchgate.net",
+      "semanticscholar.org"
+    ],
+    "major_news": [
+      "reuters.com",
+      "apnews.com",
+      "bbc.com",
+      "bbc.co.uk",
+      "nytimes.com",
+      "wsj.com",
+      "washingtonpost.com",
+      "theguardian.com",
+      "economist.com",
+      "ft.com",
+      "bloomberg.com",
+      "cnbc.com"
+    ],
+    "tech_authoritative": [
+      "techcrunch.com",
+      "wired.com",
+      "arstechnica.com",
+      "theverge.com",
+      "zdnet.com",
+      "cnet.com",
+      "venturebeat.com",
+      "thenextweb.com",
+      "mittr.com",
+      "hbr.org"
+    ],
+    "official_company": [
+      "microsoft.com",
+      "google.com",
+      "apple.com",
+      "amazon.com",
+      "aws.amazon.com",
+      "cloud.google.com",
+      "azure.microsoft.com",
+      "openai.com",
+      "anthropic.com",
+      "meta.com",
+      "nvidia.com",
+      "github.com",
+      "gitlab.com"
+    ],
+    "research_data": [
+      "statista.com",
+      "gartner.com",
+      "forrester.com",
+      "mckinsey.com",
+      "bcg.com",
+      "bain.com",
+      "deloitte.com",
+      "pwc.com",
+      "kpmg.com",
+      "ey.com",
+      "idc.com",
+      "grandviewresearch.com"
+    ]
+  },
+  
+  "flagged_domains": {
+    "_description": "Sources that receive credibility penalties or require extra scrutiny",
+    "user_generated": {
+      "penalty": -15,
+      "domains": [
+        "reddit.com",
+        "quora.com",
+        "medium.com",
+        "dev.to",
+        "hashnode.com",
+        "substack.com"
+      ],
+      "note": "User-generated content may be valuable but requires corroboration"
+    },
+    "wiki_collaborative": {
+      "penalty": -10,
+      "domains": [
+        "wikipedia.org",
+        "wikimedia.org",
+        "fandom.com"
+      ],
+      "note": "Good for overview but should not be primary source"
+    },
+    "social_media": {
+      "penalty": -25,
+      "domains": [
+        "twitter.com",
+        "x.com",
+        "facebook.com",
+        "linkedin.com",
+        "instagram.com",
+        "tiktok.com",
+        "youtube.com"
+      ],
+      "note": "Social media requires verification from authoritative sources"
+    },
+    "content_farms": {
+      "penalty": -40,
+      "domains": [
+        "buzzfeed.com",
+        "huffpost.com",
+        "businessinsider.com"
+      ],
+      "note": "Mix of quality content and clickbait - use with caution"
+    }
+  },
+  
+  "blocked_domains": {
+    "_description": "Sources that should be excluded entirely from research",
+    "domains": [
+      "example.com",
+      "test.com",
+      "localhost",
+      "127.0.0.1"
+    ],
+    "patterns": [
+      "spam",
+      "fake",
+      "clickbait"
+    ],
+    "reason": "Known unreliable or placeholder domains"
+  },
+  
+  "recency_weights": {
+    "_description": "Time-based scoring adjustments (days since publication)",
+    "fresh": {
+      "max_days": 30,
+      "bonus": 10,
+      "description": "Published within last month"
+    },
+    "recent": {
+      "max_days": 180,
+      "bonus": 5,
+      "description": "Published within last 6 months"
+    },
+    "current": {
+      "max_days": 365,
+      "bonus": 0,
+      "description": "Published within last year"
+    },
+    "dated": {
+      "max_days": 730,
+      "penalty": -10,
+      "description": "1-2 years old"
+    },
+    "outdated": {
+      "max_days": null,
+      "penalty": -20,
+      "description": "More than 2 years old"
+    }
+  },
+  
+  "scoring_thresholds": {
+    "_description": "Thresholds for source inclusion decisions",
+    "include": {
+      "min_score": 50,
+      "description": "Include source in report without caveats"
+    },
+    "include_with_caveat": {
+      "min_score": 30,
+      "description": "Include but note limited credibility"
+    },
+    "exclude": {
+      "min_score": 0,
+      "description": "Do not use this source"
+    }
+  }
+}
