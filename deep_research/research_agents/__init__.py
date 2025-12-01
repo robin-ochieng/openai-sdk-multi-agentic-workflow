@@ -1,14 +1,17 @@
 """
 Research Agents for Deep Research System
 
-Seven specialized agents working together in a pipeline:
+Nine specialized agents working together in a pipeline:
 1. QueryAnalyzerAgent - Classifies and understands research queries
 2. SourceValidatorAgent - Validates and scores source credibility
 3. AcademicResearchAgent - Fetches peer-reviewed papers from Semantic Scholar
-4. PlannerAgent - Creates strategic search plans
-5. SearchAgent - Performs web searches and summarizes results
-6. WriterAgent - Synthesizes results into comprehensive reports
-7. EmailAgent - Converts to HTML and sends via Gmail SMTP
+4. MarketIntelligenceAgent - Aggregates SEC filings and market data
+5. NewsIntelligenceAgent - Aggregates real-time news with timeline focus
+6. FactCheckerAgent - Verifies factual claims in reports
+7. PlannerAgent - Creates strategic search plans
+8. SearchAgent - Performs web searches and summarizes results
+9. WriterAgent - Synthesizes results into comprehensive reports
+10. EmailAgent - Converts to HTML and sends via Gmail SMTP
 """
 
 from .query_analyzer_agent import (
@@ -40,6 +43,21 @@ from .market_agent import (
     create_market_intelligence_agent,
     should_use_market_intelligence,
     get_sec_filing_parser,
+)
+from .news_agent import (
+    NewsIntelligenceAgent,
+    create_news_intelligence_agent,
+    should_use_news_search,
+    analyze_sentiment,
+    score_source_credibility,
+    categorize_news,
+)
+from .fact_checker_agent import (
+    FactCheckerAgent,
+    create_fact_checker_agent,
+    get_fact_checker,
+    extract_claims_from_markdown,
+    verify_markdown_claims,
 )
 from .planner_agent import create_planner_agent
 from .search_agent import create_search_agent
@@ -73,6 +91,19 @@ __all__ = [
     'create_market_intelligence_agent',
     'should_use_market_intelligence',
     'get_sec_filing_parser',
+    # News Intelligence
+    'NewsIntelligenceAgent',
+    'create_news_intelligence_agent',
+    'should_use_news_search',
+    'analyze_sentiment',
+    'score_source_credibility',
+    'categorize_news',
+    # Fact Checking
+    'FactCheckerAgent',
+    'create_fact_checker_agent',
+    'get_fact_checker',
+    'extract_claims_from_markdown',
+    'verify_markdown_claims',
     # Core Pipeline
     'create_planner_agent',
     'create_search_agent',

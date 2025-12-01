@@ -39,6 +39,16 @@ from deep_research.research_agents.market_agent import (
     create_market_intelligence_agent,
     should_use_market_intelligence,
 )
+from deep_research.research_agents.news_agent import (
+    NewsIntelligenceAgent,
+    create_news_intelligence_agent,
+    should_use_news_search,
+)
+from deep_research.research_agents.fact_checker_agent import (
+    FactCheckerAgent,
+    create_fact_checker_agent,
+    extract_claims_from_markdown,
+)
 from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis, SourceMetrics
 from .models.source_validation import (
     SourceMetadata,
@@ -50,6 +60,11 @@ from .models.source_validation import (
 )
 from .models.academic_models import AcademicSearchResult, AcademicSearchFilters
 from .models.market_models import MarketSnapshot
+from .models.news_models import (
+    NewsTimeline,
+    VerificationReport,
+    VerificationStatus,
+)
 from .report_formatter import format_research_report, add_methodology_section
 from dataclasses import dataclass
 from typing import Callable
@@ -107,6 +122,12 @@ class ResearchManager:
         # Market intelligence agent (lazy initialization)
         self._market_agent: Optional[MarketIntelligenceAgent] = None
         
+        # News intelligence agent (lazy initialization)
+        self._news_agent: Optional[NewsIntelligenceAgent] = None
+        
+        # Fact checker agent (lazy initialization)
+        self._fact_checker: Optional[FactCheckerAgent] = None
+        
         # Track progress
         self.current_status = "Idle"
         self.trace_url = None
@@ -119,6 +140,12 @@ class ResearchManager:
         
         # Market intelligence results cache
         self.market_snapshot: Optional[MarketSnapshot] = None
+        
+        # News intelligence results cache
+        self.news_timeline: Optional[NewsTimeline] = None
+        
+        # Verification report cache
+        self.verification_report: Optional[VerificationReport] = None
         
         # Callback for streaming evidence to frontend
         self._on_evidence: Optional[Callable[[Dict[str, str]], None]] = None
@@ -147,6 +174,20 @@ class ResearchManager:
         if self._market_agent is None:
             self._market_agent = create_market_intelligence_agent(model=self.model)
         return self._market_agent
+    
+    @property
+    def news_agent(self) -> NewsIntelligenceAgent:
+        """Lazy-load news intelligence agent."""
+        if self._news_agent is None:
+            self._news_agent = create_news_intelligence_agent(model=self.model)
+        return self._news_agent
+    
+    @property
+    def fact_checker(self) -> FactCheckerAgent:
+        """Lazy-load fact checker agent."""
+        if self._fact_checker is None:
+            self._fact_checker = create_fact_checker_agent(model=self.model)
+        return self._fact_checker
     
     async def analyze_query(self, query: str) -> QueryAnalysis:
         """
@@ -795,6 +836,26 @@ class ResearchManager:
             query=query,
         )
         
+        # Run fact-checking on the report before final formatting
+        verification_section = ""
+        try:
+            print("   🔍 Running fact-check on report claims...")
+            self.verification_report = await self.fact_checker.verify_report(
+                formatted_markdown,
+                max_claims=15,  # Limit for performance
+                collected_sources=self.collected_sources
+            )
+            
+            # Generate verification status section
+            if self.verification_report and self.verification_report.total_claims > 0:
+                verification_section = self.verification_report.to_markdown_section()
+                print(f"   ✅ Fact-check complete: {self.verification_report.verified_count} verified, "
+                      f"{self.verification_report.disputed_count} disputed, "
+                      f"{self.verification_report.uncertain_count} uncertain")
+        except Exception as e:
+            logger.warning(f"Fact-checking failed: {e}")
+            print(f"   ⚠️ Fact-check skipped: {str(e)[:50]}")
+        
         # Add methodology & source quality section
         formatted_markdown = add_methodology_section(
             formatted_markdown,
@@ -802,6 +863,22 @@ class ResearchManager:
             query_analysis_summary=query_analysis_summary,
             sources_with_credibility=self.collected_sources
         )
+        
+        # Inject verification status section if available
+        if verification_section:
+            # Insert before the Sources/References section or at the end
+            if "## Sources" in formatted_markdown:
+                formatted_markdown = formatted_markdown.replace(
+                    "## Sources",
+                    f"{verification_section}\n\n## Sources"
+                )
+            elif "## References" in formatted_markdown:
+                formatted_markdown = formatted_markdown.replace(
+                    "## References",
+                    f"{verification_section}\n\n## References"
+                )
+            else:
+                formatted_markdown += f"\n\n{verification_section}"
 
         # Create enhanced ReportData with all metadata
         formatted_report = ReportData(

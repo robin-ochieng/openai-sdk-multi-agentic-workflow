@@ -58,6 +58,24 @@ from .market_models import (
     DataConfidence,
 )
 
+from .news_models import (
+    # News Models
+    NewsEvent,
+    NewsTimeline,
+    NewsSource,
+    NewsCategory,
+    Sentiment,
+    SentimentIntensity,
+    SentimentAnalysis,
+    # Fact-Checking Models
+    FactualClaim,
+    VerificationResult,
+    VerificationReport,
+    VerificationSource,
+    VerificationStatus,
+    ClaimCategory,
+)
+
 __all__ = [
     # Research Models
     'WebSearchItem',
@@ -104,4 +122,19 @@ __all__ = [
     'MarketTrend',
     'RiskLevel',
     'DataConfidence',
+    # News Intelligence Models
+    'NewsEvent',
+    'NewsTimeline',
+    'NewsSource',
+    'NewsCategory',
+    'Sentiment',
+    'SentimentIntensity',
+    'SentimentAnalysis',
+    # Fact-Checking Models
+    'FactualClaim',
+    'VerificationResult',
+    'VerificationReport',
+    'VerificationSource',
+    'VerificationStatus',
+    'ClaimCategory',
 ]
