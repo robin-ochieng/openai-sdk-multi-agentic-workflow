@@ -33,6 +33,14 @@ from .academic_agent import (
     should_use_academic_search,
     get_academic_filters_from_query_analysis,
 )
+from .market_agent import (
+    MarketIntelligenceAgent,
+    SECFilingParser,
+    SECAPIClient,
+    create_market_intelligence_agent,
+    should_use_market_intelligence,
+    get_sec_filing_parser,
+)
 from .planner_agent import create_planner_agent
 from .search_agent import create_search_agent
 from .writer_agent import create_writer_agent
@@ -58,6 +66,13 @@ __all__ = [
     'create_academic_research_agent',
     'should_use_academic_search',
     'get_academic_filters_from_query_analysis',
+    # Market Intelligence
+    'MarketIntelligenceAgent',
+    'SECFilingParser',
+    'SECAPIClient',
+    'create_market_intelligence_agent',
+    'should_use_market_intelligence',
+    'get_sec_filing_parser',
     # Core Pipeline
     'create_planner_agent',
     'create_search_agent',

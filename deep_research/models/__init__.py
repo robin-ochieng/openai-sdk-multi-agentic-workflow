@@ -45,6 +45,19 @@ from .academic_models import (
     PublicationVenue,
 )
 
+from .market_models import (
+    MarketSnapshot,
+    MarketMetrics,
+    CompetitorProfile,
+    PricingBenchmark,
+    RiskNote,
+    SECFilingData,
+    MarketIntelligenceQuery,
+    MarketTrend,
+    RiskLevel,
+    DataConfidence,
+)
+
 __all__ = [
     # Research Models
     'WebSearchItem',
@@ -80,4 +93,15 @@ __all__ = [
     'Author',
     'FieldOfStudy',
     'PublicationVenue',
+    # Market Intelligence Models
+    'MarketSnapshot',
+    'MarketMetrics',
+    'CompetitorProfile',
+    'PricingBenchmark',
+    'RiskNote',
+    'SECFilingData',
+    'MarketIntelligenceQuery',
+    'MarketTrend',
+    'RiskLevel',
+    'DataConfidence',
 ]

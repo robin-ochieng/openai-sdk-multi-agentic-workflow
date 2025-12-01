@@ -34,6 +34,11 @@ from deep_research.research_agents.academic_agent import (
     should_use_academic_search,
     get_academic_filters_from_query_analysis,
 )
+from deep_research.research_agents.market_agent import (
+    MarketIntelligenceAgent,
+    create_market_intelligence_agent,
+    should_use_market_intelligence,
+)
 from .models import WebSearchPlan, ResearchSummary, ReportData, QueryAnalysis, SourceMetrics
 from .models.source_validation import (
     SourceMetadata,
@@ -44,6 +49,7 @@ from .models.source_validation import (
     DomainCategory,
 )
 from .models.academic_models import AcademicSearchResult, AcademicSearchFilters
+from .models.market_models import MarketSnapshot
 from .report_formatter import format_research_report, add_methodology_section
 from dataclasses import dataclass
 from typing import Callable
@@ -98,6 +104,9 @@ class ResearchManager:
         # Academic research agent (lazy initialization)
         self._academic_agent: Optional[AcademicResearchAgent] = None
         
+        # Market intelligence agent (lazy initialization)
+        self._market_agent: Optional[MarketIntelligenceAgent] = None
+        
         # Track progress
         self.current_status = "Idle"
         self.trace_url = None
@@ -107,6 +116,9 @@ class ResearchManager:
         
         # Academic search results cache
         self.academic_results: Optional[AcademicSearchResult] = None
+        
+        # Market intelligence results cache
+        self.market_snapshot: Optional[MarketSnapshot] = None
         
         # Callback for streaming evidence to frontend
         self._on_evidence: Optional[Callable[[Dict[str, str]], None]] = None
@@ -128,6 +140,13 @@ class ResearchManager:
         if self._academic_agent is None:
             self._academic_agent = create_academic_research_agent(model=self.model)
         return self._academic_agent
+    
+    @property
+    def market_agent(self) -> MarketIntelligenceAgent:
+        """Lazy-load market intelligence agent."""
+        if self._market_agent is None:
+            self._market_agent = create_market_intelligence_agent(model=self.model)
+        return self._market_agent
     
     async def analyze_query(self, query: str) -> QueryAnalysis:
         """
@@ -302,6 +321,7 @@ class ResearchManager:
         # Reset collected sources for new search
         self.collected_sources = []
         self.academic_results = None
+        self.market_snapshot = None
         self.validation_stats = None
         
         # Get original query from search plan
@@ -313,6 +333,14 @@ class ResearchManager:
         use_academic = False
         if self.query_analysis:
             use_academic = should_use_academic_search(
+                self.query_analysis.query_type,
+                original_query
+            )
+        
+        # Determine if we should perform market intelligence search
+        use_market = False
+        if self.query_analysis:
+            use_market = should_use_market_intelligence(
                 self.query_analysis.query_type,
                 original_query
             )
@@ -332,6 +360,13 @@ class ResearchManager:
             academic_summaries = await self._perform_academic_search(original_query)
             results.extend(academic_summaries)
             print(f"📚 Total sources after academic search: {len(self.collected_sources)}")
+        
+        # Perform market intelligence search if appropriate
+        if use_market:
+            market_summary = await self._perform_market_intelligence(original_query)
+            if market_summary:
+                results.append(market_summary)
+            print(f"📊 Total sources after market intelligence: {len(self.collected_sources)}")
         
         # Validate and filter sources
         if self.collected_sources:
@@ -401,6 +436,69 @@ class ResearchManager:
             logger.error(f"Academic search failed: {e}")
             print(f"   ⚠️ Academic search failed: {e}")
             return []
+    
+    async def _perform_market_intelligence(self, query: str) -> Optional[str]:
+        """
+        Perform market intelligence analysis.
+        
+        Called when QueryAnalysis indicates the query is market_research
+        or competitive_analysis.
+        
+        Args:
+            query: The research query.
+            
+        Returns:
+            Market intelligence summary for the writer agent.
+        """
+        print(f"\n📊 Performing Market Intelligence Analysis...")
+        
+        try:
+            # Extract target company/market from query analysis
+            target_company = None
+            target_market = None
+            
+            if self.query_analysis:
+                # Use primary entities as potential company/market targets
+                entities = self.query_analysis.primary_entities
+                if entities:
+                    # First entity is often the main subject
+                    target_company = entities[0] if len(entities[0]) <= 5 else None
+                    target_market = entities[0]
+            
+            # Perform market analysis
+            snapshot = await self.market_agent.analyze_market(
+                query=query,
+                target_company=target_company,
+                target_market=target_market,
+                include_sec_data=True,
+            )
+            
+            self.market_snapshot = snapshot
+            
+            print(f"   Market: {snapshot.market_name}")
+            print(f"   Trend: {snapshot.market_trend.value}")
+            print(f"   Competitors found: {snapshot.competitor_count}")
+            print(f"   Confidence: {snapshot.confidence_score * 100:.0f}%")
+            
+            # Add market data sources to collected sources
+            for source in snapshot.data_sources:
+                self.collected_sources.append({
+                    "url": "",
+                    "title": source,
+                    "snippet": f"Market intelligence source for {snapshot.market_name}",
+                    "source_type": "market_intelligence",
+                    "credibility_score": 80,
+                    "credibility_badge": "📊 Market Data",
+                    "credibility_level": "high",
+                })
+            
+            # Return summary for the writer agent
+            return snapshot.to_report_section()
+            
+        except Exception as e:
+            logger.error(f"Market intelligence failed: {e}")
+            print(f"   ⚠️ Market intelligence failed: {e}")
+            return None
     
     def _validate_collected_sources(self) -> tuple[List[Dict[str, str]], ValidationStatistics]:
         """
