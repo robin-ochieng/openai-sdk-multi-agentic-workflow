@@ -2,9 +2,13 @@
 
 Write-Host "Starting Deep Research Agent System..." -ForegroundColor Cyan
 
-# Check Poetry
-if (-not (Get-Command poetry -ErrorAction SilentlyContinue)) {
-    Write-Host "Poetry not found!" -ForegroundColor Red
+$projectRoot = "c:\Users\Robin Ochieng.BEN-ODHIAMBO\OneDrive - Kenbright\Gig\AI Agents\Projects\Deep Research Agent\openai-sdk-multi-agentic-workflow"
+$frontendPath = Join-Path $projectRoot "deep_research\frontend"
+$venvPath = Join-Path $projectRoot "venv\Scripts\Activate.ps1"
+
+# Check virtual environment
+if (-not (Test-Path $venvPath)) {
+    Write-Host "Virtual environment not found! Please create it first." -ForegroundColor Red
     exit 1
 }
 
@@ -13,9 +17,6 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "Node.js not found!" -ForegroundColor Red
     exit 1
 }
-
-$projectRoot = "c:\Users\Robin Ochieng\OneDrive - Kenbright\Gig\AI Agents\Projects\OpenAI SDK Agents"
-$frontendPath = Join-Path $projectRoot "deep_research\frontend"
 
 # Check frontend deps
 if (-not (Test-Path (Join-Path $frontendPath "node_modules"))) {
@@ -27,7 +28,7 @@ if (-not (Test-Path (Join-Path $frontendPath "node_modules"))) {
 
 # Start Backend
 Write-Host "Starting Python API Backend..." -ForegroundColor Cyan
-$backendCmd = "Set-Location '$projectRoot'; poetry run python deep_research/api_server.py"
+$backendCmd = "Set-Location '$projectRoot'; & '$venvPath'; python deep_research/api_server.py"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "$backendCmd"
 
 # Start Frontend
