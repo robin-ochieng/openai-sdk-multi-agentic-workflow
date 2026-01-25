@@ -1,7 +1,32 @@
 """
 FastAPI Backend for Deep Research Agent
 Provides REST API with Server-Sent Events for real-time updates
+
+⚠️  DEPRECATION NOTICE ⚠️
+========================
+This module (api_server.py) is DEPRECATED and will be removed in v3.0.
+
+Please migrate to the new API module:
+    from deep_research.api.main import app
+
+Or run with:
+    uvicorn deep_research.api.main:app --port 8000
+
+The new API provides:
+- Authentication (JWT + API keys)
+- Rate limiting (tier-based)
+- User profiles and research history
+- Better error handling and logging
+
+This legacy server is maintained for backward compatibility only.
 """
+
+import warnings
+warnings.warn(
+    "deep_research.api_server is deprecated. Use deep_research.api.main instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

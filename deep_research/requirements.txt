@@ -4,6 +4,7 @@
 # Core dependencies
 openai>=1.109.0          # OpenAI SDK with Agent support
 pydantic>=2.0.0          # Structured outputs and validation
+pydantic-settings>=2.0.0 # Settings management with env vars
 python-dotenv>=1.0.0     # Environment variable management
 gradio>=4.0.0            # Web UI framework
 
@@ -14,6 +15,10 @@ langchain>=0.1.0         # LangChain (required for LangSmith integration)
 # API Server dependencies
 fastapi>=0.104.0         # FastAPI framework
 uvicorn>=0.24.0          # ASGI server
+python-multipart>=0.0.6  # Form data parsing
+
+# Authentication dependencies
+PyJWT>=2.8.0             # JWT token handling
 
 # Database dependencies
 supabase>=2.0.0          # Supabase Python client
